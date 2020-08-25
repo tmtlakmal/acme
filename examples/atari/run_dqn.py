@@ -54,7 +54,7 @@ def main(_):
   env = make_environment()
   env_spec = acme.make_environment_spec(env)
   network = networks.DQNAtariNetwork(env_spec.actions.num_values)
-  print("Test")
+
   agent = dqn.DQN(env_spec, network)
 
   loop = acme.EnvironmentLoop(env, agent)
