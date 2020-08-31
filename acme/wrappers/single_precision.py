@@ -51,6 +51,9 @@ class SinglePrecisionWrapper(base.EnvironmentWrapper):
   def reward_spec(self):
     return _convert_spec(self._environment.reward_spec())
 
+  def close(self):
+    self.environment.close()
+
 
 def _convert_spec(nested_spec: types.NestedSpec) -> types.NestedSpec:
   """Convert a nested spec."""
