@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """Generic actor implementation, using TensorFlow and Sonnet."""
-from typing import Optional
+from typing import Optional, Union
 
 from acme import adders
 from acme import core
@@ -22,6 +22,7 @@ from acme import types
 # Internal imports.
 from acme.tf import utils as tf2_utils
 from acme.tf import variable_utils as tf2_variable_utils
+from acme.utils.schedulers import Schedule
 
 import dm_env
 import sonnet as snt
@@ -43,6 +44,7 @@ class FeedForwardActor(core.Actor):
   def __init__(
       self,
       policy_network: snt.Module,
+      epsilon_scheduler: Optional[Union[Schedule, tf.Tensor]] = None,
       adder: Optional[adders.Adder] = None,
       variable_client: Optional[tf2_variable_utils.VariableClient] = None,
   ):
@@ -60,13 +62,25 @@ class FeedForwardActor(core.Actor):
     self._adder = adder
     self._variable_client = variable_client
     self._policy_network = tf.function(policy_network)
+    self.epsilon_scheduler = epsilon_scheduler
+
+    if isinstance(self.epsilon_scheduler, Schedule):
+      self.epsilon = tf.Variable(1.0, trainable=False)
+    else:
+      self.epsilon = epsilon_scheduler
+
 
   def select_action(self, observation: types.NestedArray) -> types.NestedArray:
     # Add a dummy batch dimension and as a side effect convert numpy to TF.
     batched_obs = tf2_utils.add_batch_dim(observation)
 
+    if isinstance(self.epsilon_scheduler, Schedule):
+      self.epsilon.assign(self.epsilon_scheduler.value())
+
     # Forward the policy network.
-    policy_output = self._policy_network(batched_obs)
+    policy_output = self._policy_network(batched_obs, self.epsilon)
+
+
 
     # If the policy network parameterises a distribution, sample from it.
     def maybe_sample(output):

@@ -16,7 +16,7 @@
 """DQN agent implementation."""
 
 import copy
-from typing import Optional
+from typing import Optional, Union
 
 from acme import datasets
 from acme import specs
@@ -27,10 +27,32 @@ from acme.agents.tf.dqn import learning
 from acme.tf import savers as tf2_savers
 from acme.tf import utils as tf2_utils
 from acme.utils import loggers
+from acme.utils.schedulers import Schedule
+from typing import Any, Callable, Iterable
 import reverb
 import sonnet as snt
 import tensorflow as tf
 import trfl
+
+
+### This module is used to run with adaptive epsilon
+class GreedyEpsilonWithDecay(snt.Module):
+    def __init__(self, layers: Iterable[Callable[..., Any]] = None
+                 , name=None):
+        super(GreedyEpsilonWithDecay, self).__init__(name=name)
+        self._layers = list(layers) if layers is not None else []
+
+    def __call__(self, inputs, epsilon, *args, **kwargs):
+        outputs = inputs
+        for i, mod in enumerate(self._layers):
+            if i == 0:
+                # Pass additional arguments to the first layer.
+                outputs = mod(outputs, *args, **kwargs)
+            elif i == len(self._layers) - 1:
+                outputs = mod(outputs, epsilon)
+            else:
+                outputs = mod(outputs)
+        return outputs
 
 
 class DQN(agent.Agent):
@@ -51,16 +73,16 @@ class DQN(agent.Agent):
       target_update_period: int = 100,
       samples_per_insert: float = 32.0,
       min_replay_size: int = 1000,
-      max_replay_size: int = 1000000,
+      max_replay_size: int = 100000,
       importance_sampling_exponent: float = 0.2,
       priority_exponent: float = 0.6,
       n_step: int = 5,
-      epsilon: Optional[tf.Tensor] = None,
+      epsilon: Optional[Union[Schedule, tf.Tensor]] = None,
       learning_rate: float = 1e-3,
       discount: float = 0.99,
       logger: loggers.Logger = None,
       checkpoint: bool = True,
-      checkpoint_subpath: str = '~/acme/',
+      checkpoint_subpath: str = '~/acme/'
   ):
     """Initialize the agent.
 
@@ -117,11 +139,13 @@ class DQN(agent.Agent):
 
     # Use constant 0.05 epsilon greedy policy by default.
     if epsilon is None:
-      epsilon = tf.Variable(0.05, trainable=False)
-    policy_network = snt.Sequential([
+        epsilon = tf.Variable(0.05, trainable=False)
+
+    policy_network = GreedyEpsilonWithDecay([
         network,
-        lambda q: trfl.epsilon_greedy(q, epsilon=epsilon).sample(),
+        lambda q, e: trfl.epsilon_greedy(q, e).sample(),
     ])
+
 
     # Create a target network.
     target_network = copy.deepcopy(network)
@@ -131,7 +155,7 @@ class DQN(agent.Agent):
     tf2_utils.create_variables(target_network, [environment_spec.observations])
 
     # Create the actor which defines how we take actions.
-    actor = actors.FeedForwardActor(policy_network, adder)
+    actor = actors.FeedForwardActor(policy_network, epsilon, adder)
 
     # The learner updates the parameters (and initializes them).
     learner = learning.DQNLearner(
