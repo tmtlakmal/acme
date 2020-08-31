@@ -42,12 +42,12 @@ jax_requirements = [
     'jax',
     'jaxlib',
     'dm-haiku',
-    'rlax @ git+git://github.com/deepmind/rlax.git#egg=rlax',
+    'rlax @ git+http://github.com/deepmind/rlax.git#egg=rlax',
     'dataclasses',  # Back-port for Python 3.6.
 ]
 
 env_requirements = [
-    'bsuite @ git+git://github.com/deepmind/bsuite.git#egg=bsuite',
+    'bsuite @ git+http://github.com/deepmind/bsuite.git#egg=bsuite',
     'dm-control',
     'gym',
     'gym[atari]',
