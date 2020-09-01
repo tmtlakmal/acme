@@ -63,12 +63,8 @@ class FeedForwardActor(core.Actor):
     self._variable_client = variable_client
     self._policy_network = tf.function(policy_network)
     self.epsilon_scheduler = epsilon_scheduler
-
-    if isinstance(self.epsilon_scheduler, Schedule):
-      self.epsilon = tf.Variable(1.0, trainable=False)
-    else:
-      self.epsilon = epsilon_scheduler
-
+    self.epsilon = tf.Variable(1.0, trainable=False) if isinstance(self.epsilon_scheduler, Schedule) \
+                   else epsilon_scheduler
 
   def select_action(self, observation: types.NestedArray) -> types.NestedArray:
     # Add a dummy batch dimension and as a side effect convert numpy to TF.
