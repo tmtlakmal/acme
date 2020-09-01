@@ -71,18 +71,19 @@ class DQN(agent.Agent):
       batch_size: int = 256,
       prefetch_size: int = 4,
       target_update_period: int = 100,
-      samples_per_insert: float = 32.0,
+      samples_per_insert: float = 256.0,
       min_replay_size: int = 1000,
       max_replay_size: int = 100000,
       importance_sampling_exponent: float = 0.2,
       priority_exponent: float = 0.6,
-      n_step: int = 5,
+      n_step: int = 1,
       epsilon: Optional[Union[Schedule, tf.Tensor]] = None,
       learning_rate: float = 1e-3,
       discount: float = 0.99,
       logger: loggers.Logger = None,
       checkpoint: bool = True,
-      checkpoint_subpath: str = '~/acme/'
+      checkpoint_subpath: str = '~/acme/',
+      tensorboard_log_dir: str = None
   ):
     """Initialize the agent.
 
@@ -168,7 +169,8 @@ class DQN(agent.Agent):
         dataset=dataset,
         replay_client=replay_client,
         logger=logger,
-        checkpoint=checkpoint)
+        checkpoint=checkpoint,
+        tensorboard_log_dir=tensorboard_log_dir)
 
     if checkpoint:
       self._checkpointer = tf2_savers.Checkpointer(

@@ -25,6 +25,7 @@ from acme.tf import savers as tf2_savers
 from acme.tf import utils as tf2_utils
 from acme.utils import counting
 from acme.utils import loggers
+from acme.utils import paths
 import numpy as np
 import reverb
 import sonnet as snt
@@ -54,6 +55,7 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
       counter: counting.Counter = None,
       logger: loggers.Logger = None,
       checkpoint: bool = True,
+      tensorboard_log_dir: str =None
   ):
     """Initializes the learner.
 
@@ -104,6 +106,16 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
     else:
       self._snapshotter = None
 
+    if not tensorboard_log_dir is None:
+      self._tensorboard = True
+      id = paths.find_next_path_id(tensorboard_log_dir, 'DQN') + 1
+      self._train_log_dir = tensorboard_log_dir + "DQN_" + str(id)
+      self._train_summary_writer = tf.summary.create_file_writer(self._train_log_dir)
+    else:
+      self._tensorboard = False
+      self._train_summary_writer = None
+      self._train_log_dir = None
+
     # Do not record timestamps until after the first learning step is done.
     # This is to avoid including the time it takes for actors to come online and
     # fill the replay buffer.
@@ -143,6 +155,8 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
       loss *= tf.cast(importance_weights, loss.dtype)  # [B]
       loss = tf.reduce_mean(loss, axis=[0])  # []
 
+
+
     # Do a step of SGD.
     gradients = tape.gradient(loss, self._network.trainable_variables)
     self._optimizer.apply(gradients, self._network.trainable_variables)
@@ -163,13 +177,29 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
     # Report loss & statistics for logging.
     fetches = {
         'loss': loss,
+        'td_error': tf.reduce_mean(extra.td_error)
     }
 
     return fetches
 
   def step(self):
     # Do a batch of SGD.
+
+    #unable to trace within tf.function create a wrapper around for tracing
+    if self._tensorboard:
+      current_step = self._counter.get_counts()["steps"]   \
+                     if "steps" in self._counter.get_counts() else 0
+
+      #tf.summary.trace_on(graph=True, profiler=True)
+
     result = self._step()
+
+    #unable to trace within tf.function create a wrapper around for tracing
+    if self._tensorboard:
+      with self._train_summary_writer.as_default():
+        #tf.summary.trace_export(name="learner_trace", step=current_step, profiler_outdir=self._train_log_dir)
+        tf.summary.scalar('loss', result['loss'], step=current_step)
+        tf.summary.scalar('td_error', result['td_error'], step=current_step)
 
     # Compute elapsed time.
     timestamp = time.time()
