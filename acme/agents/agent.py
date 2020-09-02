@@ -19,10 +19,12 @@ from typing import List
 
 from acme import core
 from acme import types
+from acme.utils import paths
 # Internal imports.
 
 import dm_env
 import numpy as np
+import tensorflow as tf
 
 
 class Agent(core.Actor, core.VariableSource):

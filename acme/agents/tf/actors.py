@@ -47,6 +47,7 @@ class FeedForwardActor(core.Actor):
       epsilon_scheduler: Optional[Union[Schedule, tf.Tensor]] = None,
       adder: Optional[adders.Adder] = None,
       variable_client: Optional[tf2_variable_utils.VariableClient] = None,
+      tensorboard_writer=None
   ):
     """Initializes the actor.
 
@@ -65,6 +66,8 @@ class FeedForwardActor(core.Actor):
     self.epsilon_scheduler = epsilon_scheduler
     self.epsilon = tf.Variable(1.0, trainable=False) if isinstance(self.epsilon_scheduler, Schedule) \
                    else epsilon_scheduler
+
+    self._tensorboard_writer = tensorboard_writer
 
   def select_action(self, observation: types.NestedArray) -> types.NestedArray:
     # Add a dummy batch dimension and as a side effect convert numpy to TF.

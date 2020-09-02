@@ -16,7 +16,7 @@
 """DQN learner implementation."""
 
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import acme
 from acme.adders import reverb as adders
@@ -55,7 +55,7 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
       counter: counting.Counter = None,
       logger: loggers.Logger = None,
       checkpoint: bool = True,
-      tensorboard_log_dir: str =None
+      tensorboard_writer = None
   ):
     """Initializes the learner.
 
@@ -97,7 +97,7 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
 
     # Internalise logging/counting objects.
     self._counter = counter or counting.Counter()
-    self._logger = logger or loggers.TerminalLogger('learner', time_delta=1.)
+    self._logger = logger or loggers.TerminalLogger('learner', time_delta=5.)
 
     # Create a snapshotter object.
     if checkpoint:
@@ -106,15 +106,7 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
     else:
       self._snapshotter = None
 
-    if not tensorboard_log_dir is None:
-      self._tensorboard = True
-      id = paths.find_next_path_id(tensorboard_log_dir, 'DQN') + 1
-      self._train_log_dir = tensorboard_log_dir + "DQN_" + str(id)
-      self._train_summary_writer = tf.summary.create_file_writer(self._train_log_dir)
-    else:
-      self._tensorboard = False
-      self._train_summary_writer = None
-      self._train_log_dir = None
+    self._tensorboard_writer = tensorboard_writer
 
     # Do not record timestamps until after the first learning step is done.
     # This is to avoid including the time it takes for actors to come online and
@@ -152,6 +144,7 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
       importance_weights /= tf.reduce_max(importance_weights)
 
       # Reweight.
+      original_loss = loss
       loss *= tf.cast(importance_weights, loss.dtype)  # [B]
       loss = tf.reduce_mean(loss, axis=[0])  # []
 
@@ -177,6 +170,7 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
     # Report loss & statistics for logging.
     fetches = {
         'loss': loss,
+        'original loss': tf.reduce_mean(original_loss),
         'td_error': tf.reduce_mean(extra.td_error)
     }
 
@@ -185,21 +179,16 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
   def step(self):
     # Do a batch of SGD.
 
-    #unable to trace within tf.function create a wrapper around for tracing
-    if self._tensorboard:
-      current_step = self._counter.get_counts()["steps"]   \
-                     if "steps" in self._counter.get_counts() else 0
-
-      #tf.summary.trace_on(graph=True, profiler=True)
-
     result = self._step()
 
     #unable to trace within tf.function create a wrapper around for tracing
-    if self._tensorboard:
-      with self._train_summary_writer.as_default():
-        #tf.summary.trace_export(name="learner_trace", step=current_step, profiler_outdir=self._train_log_dir)
-        tf.summary.scalar('loss', result['loss'], step=current_step)
-        tf.summary.scalar('td_error', result['td_error'], step=current_step)
+    if not self._tensorboard_writer is None:
+      current_step = self._counter.get_counts()["steps"]   \
+                     if "steps" in self._counter.get_counts() else 0
+      with self._tensorboard_writer.as_default():
+        with tf.name_scope('dqn policy loss'):
+          for key, val in result.items():
+            tf.summary.scalar(key, val, step=current_step)
 
     # Compute elapsed time.
     timestamp = time.time()

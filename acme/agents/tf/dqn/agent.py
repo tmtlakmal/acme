@@ -26,6 +26,7 @@ from acme.agents.tf import actors
 from acme.agents.tf.dqn import learning
 from acme.tf import savers as tf2_savers
 from acme.tf import utils as tf2_utils
+from acme.utils import paths
 from acme.utils import loggers
 from acme.utils.schedulers import Schedule
 from typing import Any, Callable, Iterable
@@ -76,14 +77,14 @@ class DQN(agent.Agent):
       max_replay_size: int = 100000,
       importance_sampling_exponent: float = 0.2,
       priority_exponent: float = 0.6,
-      n_step: int = 1,
+      n_step: int = 5,
       epsilon: Optional[Union[Schedule, tf.Tensor]] = None,
       learning_rate: float = 1e-3,
       discount: float = 0.99,
       logger: loggers.Logger = None,
       checkpoint: bool = True,
       checkpoint_subpath: str = '~/acme/',
-      tensorboard_log_dir: str = None
+      tensorboard_writer = None
   ):
     """Initialize the agent.
 
@@ -170,7 +171,7 @@ class DQN(agent.Agent):
         replay_client=replay_client,
         logger=logger,
         checkpoint=checkpoint,
-        tensorboard_log_dir=tensorboard_log_dir)
+        tensorboard_writer=tensorboard_writer)
 
     if checkpoint:
       self._checkpointer = tf2_savers.Checkpointer(
@@ -191,3 +192,4 @@ class DQN(agent.Agent):
     super().update()
     if self._checkpointer is not None:
       self._checkpointer.save()
+

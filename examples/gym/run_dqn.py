@@ -34,12 +34,17 @@ from acme import specs
 from acme.utils.schedulers import LinearSchedule
 from acme import wrappers
 from acme.tf import networks
-import dm_env
+from acme.utils import paths
+from acme.utils.loggers import tf_summary
 from external_env.vehicle_env import Vehicle_env
+
+import dm_env
+import tensorflow as tf
+
 
 flags.DEFINE_string('level', 'PongNoFrameskip-v4', 'Which Atari level to play.')
 flags.DEFINE_integer('num_episodes', 10000, 'Number of episodes to train for.')
-flags.DEFINE_integer('num_steps', 400000, 'Number of steps to train for.')
+flags.DEFINE_integer('num_steps', 200000, 'Number of steps to train for.')
 FLAGS = flags.FLAGS
 
 
@@ -54,16 +59,31 @@ def make_environment() -> dm_env.Environment:
 
   return environment
 
+def createTensorboardWriter(tensorboard_log_dir, suffix):
+    id = paths.find_next_path_id(tensorboard_log_dir, suffix) + 1
+    train_log_dir = tensorboard_log_dir + suffix + "_"+ str(id)
+    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+    return train_summary_writer
+
+def createNextFileName(tensorboard_log_dir, suffix):
+    id = paths.find_next_path_id(tensorboard_log_dir, suffix) + 1
+    return  tensorboard_log_dir + suffix + "_"+ str(id)
+
 def main(_):
   env = make_environment()
   environment_spec = specs.make_environment_spec(env)
-  network = networks.DuellingMLP(3,  (64, 64, 64))
+  network = networks.DQN(3,  (32, 32, 32))
 
+  tensorboard_writer = createTensorboardWriter("/home/pgunarathna/PycharmProjects/acme/examples/gym/train/", "DQN")
+  #file_log = createNextFileName("/home/pgunarathna/PycharmProjects/acme/examples/gym/train/", "DQN")
+  #logger_dqn = tf_summary.TFSummaryLogger(file_log, "dqn")
+  #logger_env = tf_summary.TFSummaryLogger(file_log, "env")
   epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=0.3, eps_start=1, eps_end=0)
 
-  agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule)
+  agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3,
+                  tensorboard_writer=tensorboard_writer)
 
-  loop = acme.EnvironmentLoop(env, agent)
+  loop = acme.EnvironmentLoop(env, agent, tensorboard_writer=tensorboard_writer)
   loop.run(num_steps=FLAGS.num_steps)
 
   env.close()

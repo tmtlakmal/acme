@@ -23,6 +23,7 @@ from acme import core
 from acme.utils import counting
 from acme.utils import loggers
 
+import tensorflow as tf
 import dm_env
 
 
@@ -53,12 +54,14 @@ class EnvironmentLoop(core.Worker):
       counter: counting.Counter = None,
       logger: loggers.Logger = None,
       label: str = 'environment_loop',
+      tensorboard_writer = None
   ):
     # Internalize agent and environment.
     self._environment = environment
     self._actor = actor
     self._counter = counter or counting.Counter()
-    self._logger = logger or loggers.make_default_logger(label)
+    self._logger = logger or loggers.make_default_logger(label, False, 5)
+    self._tensorboard_writer = tensorboard_writer
 
   def run_episode(self) -> loggers.LoggingData:
     """Run one episode.
@@ -98,6 +101,14 @@ class EnvironmentLoop(core.Worker):
 
     # Collect the results and combine with counts.
     steps_per_second = episode_steps / (time.time() - start_time)
+
+    if not self._tensorboard_writer is None:
+      current_step = self._counter.get_counts()["steps"]   \
+                     if "steps" in self._counter.get_counts() else 0
+      with self._tensorboard_writer.as_default():
+        with tf.name_scope('environment loop'):
+          tf.summary.scalar('episode_reward', episode_return, step=current_step)
+
     result = {
         'episode_length': episode_steps,
         'episode_return': episode_return,

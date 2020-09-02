@@ -13,9 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A duelling network architecture, as described in [0].
-
-[0] https://arxiv.org/abs/1511.06581
+"""A standard Deep-Q learning feed forward network.
 """
 
 from typing import Sequence
@@ -24,7 +22,7 @@ import sonnet as snt
 import tensorflow as tf
 
 
-class DuellingMLP(snt.Module):
+class DQN(snt.Module):
   """A Duelling MLP Q-network."""
 
   def __init__(
@@ -32,10 +30,9 @@ class DuellingMLP(snt.Module):
       num_actions: int,
       hidden_sizes: Sequence[int],
   ):
-    super().__init__(name='duelling_q_network')
+    super().__init__(name='q_network')
 
-    self._value_mlp = snt.nets.MLP([*hidden_sizes, 1])
-    self._advantage_mlp = snt.nets.MLP([*hidden_sizes, num_actions],tf.nn.tanh)
+    self._advantage_mlp = snt.nets.MLP([*hidden_sizes, num_actions])
 
   def __call__(self, inputs: tf.Tensor) -> tf.Tensor:
     """Forward pass of the duelling network.
@@ -47,13 +44,12 @@ class DuellingMLP(snt.Module):
       q_values: 2-D tensor of action values of shape [batch_size, num_actions]
     """
 
-    # Compute value & advantage for duelling.
-    value = self._value_mlp(inputs)  # [B, 1]
+    # Compute value
     advantages = self._advantage_mlp(inputs)  # [B, A]
 
     # Advantages have zero mean.
-    advantages -= tf.reduce_mean(advantages, axis=-1, keepdims=True)  # [B, A]
+    #advantages -= tf.reduce_mean(advantages, axis=-1, keepdims=True)  # [B, A]
 
-    q_values = value + advantages  # [B, A]
+    q_values = advantages  # [B, A]
 
     return q_values
