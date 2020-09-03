@@ -72,9 +72,9 @@ def createNextFileName(tensorboard_log_dir, suffix):
 def main(_):
   env = make_environment()
   environment_spec = specs.make_environment_spec(env)
-  network = networks.DQN(3,  (32, 32, 32))
+  network = networks.DuellingMLP(3,  (32, 32, 32))
 
-  tensorboard_writer = createTensorboardWriter("/home/pgunarathna/PycharmProjects/acme/examples/gym/train/", "DQN")
+  tensorboard_writer = createTensorboardWriter("./train/", "DQN")
   #file_log = createNextFileName("/home/pgunarathna/PycharmProjects/acme/examples/gym/train/", "DQN")
   #logger_dqn = tf_summary.TFSummaryLogger(file_log, "dqn")
   #logger_env = tf_summary.TFSummaryLogger(file_log, "env")
