@@ -72,7 +72,7 @@ class DQN(agent.Agent):
       batch_size: int = 256,
       prefetch_size: int = 4,
       target_update_period: int = 100,
-      samples_per_insert: float = 256.0,
+      samples_per_insert: float = 32.0,
       min_replay_size: int = 1000,
       max_replay_size: int = 100000,
       importance_sampling_exponent: float = 0.2,
@@ -137,7 +137,8 @@ class DQN(agent.Agent):
     dataset = datasets.make_reverb_dataset(
         server_address=address,
         batch_size=batch_size,
-        prefetch_size=prefetch_size)
+        prefetch_size=prefetch_size,
+        parallel_batch_optimization=False)
 
     # Use constant 0.05 epsilon greedy policy by default.
     if epsilon is None:
@@ -178,7 +179,8 @@ class DQN(agent.Agent):
           directory=checkpoint_subpath,
           objects_to_save=learner.state,
           subdirectory='dqn_learner',
-          time_delta_minutes=60.)
+          time_delta_minutes=60.,
+          add_uid=False)
     else:
       self._checkpointer = None
 
@@ -190,6 +192,12 @@ class DQN(agent.Agent):
 
   def update(self):
     super().update()
-    if self._checkpointer is not None:
-      self._checkpointer.save()
+    self.save_checkpoints()
 
+  def save_checkpoints(self, force=False):
+    if self._checkpointer is not None:
+       self._checkpointer.save(force)
+
+  def restore(self):
+    if self._checkpointer is not None:
+       self._checkpointer.restore()

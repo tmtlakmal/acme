@@ -14,19 +14,7 @@
 # limitations under the License.
 
 """Run DQN on Atari."""
-
-import functools
-
-from absl import app
-from absl import flags
-import acme
-from acme import wrappers
 from acme.agents.tf import dqn
-from acme.tf import networks
-import dm_env
-import gym
-from typing import Mapping, Sequence
-
 from absl import app
 from absl import flags
 import acme
@@ -35,18 +23,11 @@ from acme.utils.schedulers import LinearSchedule
 from acme import wrappers
 from acme.tf import networks
 from acme.utils import paths
-from acme.utils.loggers import tf_summary
-from external_env.vehicle_env import Vehicle_env
+from external_env.vehicle_controller.vehicle_env import Vehicle_env
+from acme.agents import agent
 
 import dm_env
 import tensorflow as tf
-
-
-flags.DEFINE_string('level', 'PongNoFrameskip-v4', 'Which Atari level to play.')
-flags.DEFINE_integer('num_episodes', 10000, 'Number of episodes to train for.')
-flags.DEFINE_integer('num_steps', 200000, 'Number of steps to train for.')
-FLAGS = flags.FLAGS
-
 
 
 def make_environment() -> dm_env.Environment:
@@ -69,25 +50,52 @@ def createNextFileName(tensorboard_log_dir, suffix):
     id = paths.find_next_path_id(tensorboard_log_dir, suffix) + 1
     return  tensorboard_log_dir + suffix + "_"+ str(id)
 
+flags.DEFINE_integer('num_episodes', 10000, 'Number of episodes to train for.')
+flags.DEFINE_integer('num_steps', 1000, 'Number of steps to train for.')
+FLAGS = flags.FLAGS
+
 def main(_):
+
+  # Parameters to save and restore
+  use_pre_trained = True
+
   env = make_environment()
   environment_spec = specs.make_environment_spec(env)
   network = networks.DuellingMLP(3,  (32, 32, 32))
-
   tensorboard_writer = createTensorboardWriter("./train/", "DQN")
-  #file_log = createNextFileName("/home/pgunarathna/PycharmProjects/acme/examples/gym/train/", "DQN")
-  #logger_dqn = tf_summary.TFSummaryLogger(file_log, "dqn")
-  #logger_env = tf_summary.TFSummaryLogger(file_log, "env")
-  epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=0.3, eps_start=1, eps_end=0)
+
+  if use_pre_trained:
+    epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=1.0, eps_start=0, eps_end=0)
+  else:
+    epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=0.3, eps_start=1, eps_end=0)
 
   agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3,
-                  tensorboard_writer=tensorboard_writer)
+                  batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
+                  checkpoint=True, checkpoint_subpath='./checkpoints/')
+
+  if use_pre_trained:
+      agent.restore()
 
   loop = acme.EnvironmentLoop(env, agent, tensorboard_writer=tensorboard_writer)
   loop.run(num_steps=FLAGS.num_steps)
+  agent.save_checkpoints(force=True)
 
+  test_trained_agent(agent, env, 1000)
   env.close()
 
+def test_trained_agent(agent : agent.Agent,
+                       env : dm_env.Environment,
+                       num_time_steps : int):
+    timestep = env.reset()
+    reward = 0
+    for _ in range(num_time_steps):
+        action = agent.select_action(timestep.observation)
+        timestep = env.step(action)
+        reward += timestep.reward
+        if timestep.last():
+            timestep = env.reset()
+            print("Episode reward: ", reward)
+            reward = 0
 
 if __name__ == '__main__':
   app.run(main)
