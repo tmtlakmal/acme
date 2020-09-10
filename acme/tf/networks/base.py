@@ -16,7 +16,7 @@
 """Convenient base classes for custom networks."""
 
 import abc
-from typing import Tuple, TypeVar
+from typing import Tuple, TypeVar, Sequence
 
 from acme import types
 import sonnet as snt
@@ -56,3 +56,24 @@ class RNNCore(snt.RNNCore, abc.ABC):
     Returns:
       Nested sequence output of RNN, and final state.
     """
+class R2D2Network(RNNCore):
+
+  def __init__(self, num_actions: int,
+                    lstm_layer_size: int,
+                    feedforward_layers : Sequence[int]
+  ):
+    super().__init__(name='R2D2Network')
+    self._net = snt.DeepRNN([
+        snt.Flatten(),
+        snt.LSTM(lstm_layer_size),
+        snt.nets.MLP([*feedforward_layers, num_actions])
+    ])
+
+  def __call__(self, inputs, state):
+    return self._net(inputs, state)
+
+  def initial_state(self, batch_size: int, **kwargs):
+    return self._net.initial_state(batch_size)
+
+  def unroll(self, inputs, state, sequence_length):
+    return snt.static_unroll(self._net, inputs, state, sequence_length)
