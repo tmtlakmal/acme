@@ -9,14 +9,15 @@ class Vehicle:
         self.max_speed = 22
         self.max_acc = 2
 
-
-
     def step(self, acceleration):
         done = False
         reward = 0
         info = {'is_success':False}
 
-        self.speed += acceleration*self.max_acc*(1 - (self.speed/self.max_speed)**4)
+        if acceleration >= 0:
+            self.speed += acceleration*self.max_acc*(1 - (self.speed/self.max_speed)**4)
+        else:
+            self.speed += acceleration*self.max_acc
 
         if self.speed < 0:
             self.speed = 0

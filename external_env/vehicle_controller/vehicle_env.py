@@ -2,10 +2,8 @@ import gym
 import numpy as np
 from gym import spaces
 #from External_Interface.zeromq_client import ZeroMqClient
-from external_env.Vehicle_obj import  Vehicle
-import json
-import random
-from numpy import random
+from external_env.vehicle_controller.vehicle_obj import  Vehicle
+
 
 class Vehicle_env(gym.Env):
     """Custom Environment that follows gym interface"""
@@ -80,7 +78,7 @@ class Vehicle_env(gym.Env):
       pass
 
     def close (self):
-      print("Correctly ended epsiodes", self.correctly_ended)
+      print("Correctly ended episodes", self.correctly_ended)
       pass
 
     def decode_message(self, message, action):
