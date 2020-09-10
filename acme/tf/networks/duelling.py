@@ -35,7 +35,7 @@ class DuellingMLP(snt.Module):
     super().__init__(name='duelling_q_network')
 
     self._value_mlp = snt.nets.MLP([*hidden_sizes, 1])
-    self._advantage_mlp = snt.nets.MLP([*hidden_sizes, num_actions],tf.nn.tanh)
+    self._advantage_mlp = snt.nets.MLP([*hidden_sizes, num_actions])
 
   def __call__(self, inputs: tf.Tensor) -> tf.Tensor:
     """Forward pass of the duelling network.
