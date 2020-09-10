@@ -134,7 +134,7 @@ class Checkpointer:
           max_to_keep=max_to_keep,
           keep_checkpoint_every_n_hours=keep_checkpoint_every_n_hours)
 
-      self.restore()
+      #self.restore() //disable initial restore
 
   def save(self, force: bool = False) -> bool:
     """Save the checkpoint if it's the appropriate time, otherwise no-ops.
