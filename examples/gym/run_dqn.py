@@ -51,7 +51,7 @@ def createNextFileName(tensorboard_log_dir, suffix):
     return  tensorboard_log_dir + suffix + "_"+ str(id)
 
 flags.DEFINE_integer('num_episodes', 10000, 'Number of episodes to train for.')
-flags.DEFINE_integer('num_steps', 1000, 'Number of steps to train for.')
+flags.DEFINE_integer('num_steps', 800000, 'Number of steps to train for.')
 FLAGS = flags.FLAGS
 
 def main(_):
@@ -67,20 +67,20 @@ def main(_):
   if use_pre_trained:
     epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=1.0, eps_start=0, eps_end=0)
   else:
-    epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=0.3, eps_start=1, eps_end=0)
+    epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=0.25, eps_start=1, eps_end=0)
 
   agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3,
                   batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
-                  checkpoint=True, checkpoint_subpath='./checkpoints/')
+                  checkpoint=True, checkpoint_subpath='./checkpoints/', target_update_period=200)
 
   if use_pre_trained:
       agent.restore()
 
-  loop = acme.EnvironmentLoop(env, agent, tensorboard_writer=tensorboard_writer)
-  loop.run(num_steps=FLAGS.num_steps)
-  agent.save_checkpoints(force=True)
+  #loop = acme.EnvironmentLoop(env, agent, tensorboard_writer=tensorboard_writer)
+  #loop.run(num_steps=FLAGS.num_steps)
+  #agent.save_checkpoints(force=True)
 
-  test_trained_agent(agent, env, 1000)
+  test_trained_agent(agent, env, 4000)
   env.close()
 
 def test_trained_agent(agent : agent.Agent,
