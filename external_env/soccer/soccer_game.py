@@ -1,6 +1,6 @@
 from external_env.soccer.grid import Grid
 from external_env.soccer.player import Player, Movable, Actions
-from external_env.soccer.controller import OffensiveController, RandomController
+from external_env.soccer.controller import OffensiveController, RandomController, DefensiveController
 import  numpy as np
 
 class SoccerGame():
@@ -110,7 +110,7 @@ if __name__=='__main__':
     game.reset()
     done = False
     playerA = RandomController('A')
-    playerB = OffensiveController('B')
+    playerB = DefensiveController('B')
 
     num_win = 0
     num_tie = 0

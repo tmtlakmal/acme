@@ -76,3 +76,35 @@ class OffensiveController(BaseController):
                     action = Actions.Left
 
         return action
+
+class DefensiveController(BaseController):
+
+    def select_action(self, states):
+        self.decode_states(states)
+        action = Actions.Stand
+        if self.has_ball:
+            # move away from the opponent
+            if self.opp_pos_x > self.my_pos_x:
+                action = Actions.Left
+            elif self.opp_pos_x < self.my_pos_x:
+                action = Actions.Right
+            elif self.opp_pos_y > self.my_pos_y:
+                action = Actions.Down
+            else:
+                action = Actions.Up
+        else:
+            # if within goals x range
+            if self.my_pos_y <= self.my_goal_y_up and self.my_pos_y >= self.my_goal_y_bottom:
+                if self.my_goal_x - 1 > self.my_pos_x:
+                    action = Actions.Right
+                elif self.my_pos_y == self.my_goal_y_up:
+                    action = Actions.Down
+                elif self.my_pos_y == self.my_goal_y_bottom:
+                    action = Actions.Up
+                else:
+                    action = Actions.Left
+
+        return action
+
+
+

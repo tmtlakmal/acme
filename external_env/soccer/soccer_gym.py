@@ -1,7 +1,7 @@
 from gym import spaces
 from external_env.soccer.soccer_game import SoccerGame
 from external_env.soccer.player import Actions
-from external_env.soccer.controller import RandomController, OffensiveController, BaseController
+from external_env.soccer.controller import RandomController, OffensiveController, DefensiveController, BaseController
 import gym
 import numpy as np
 
@@ -29,7 +29,8 @@ class SoccerGym(gym.Env):
         self.step_count = 0
 
     def reset(self):
-        self.opponent = OffensiveController('B') #if np.random.randint(0,2) == 1 else RandomController('B')
+        #self.opponent = OffensiveController('B') if np.random.randint(0,2) == 1 else DefensiveController('B')
+        self.opponent = np.random.choice([DefensiveController('B')], 1)[0]
         self.game.reset()
         self.step_count = 0
         return self.game.get_serialized_states()
