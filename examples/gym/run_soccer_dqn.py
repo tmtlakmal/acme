@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """Run DQN on Atari."""
-from acme.agents.tf import dqn
+from acme.agents.tf import dqn, r2d2
 from absl import app
 from absl import flags
 import acme
@@ -31,9 +31,10 @@ import dm_env
 import tensorflow as tf
 
 
-def make_environment() -> dm_env.Environment:
 
-  environment =  SoccerGym(9,6)
+def make_environment(model_opponent=False) -> dm_env.Environment:
+
+  environment =  SoccerGym(9,6,opponent_history=model_opponent)
   #environment = wrappers.Monitor_save_step_data(environment)
   # Make sure the environment obeys the dm_env.Environment interface.
   environment = wrappers.GymWrapper(environment)
@@ -59,10 +60,15 @@ def main(_):
 
   # Parameters to save and restore
   use_pre_trained = False
+  use_recurrence = True
+  model_opponent = False
 
-  env = make_environment()
+  env = make_environment(model_opponent)
   environment_spec = specs.make_environment_spec(env)
-  network = networks.DuellingMLP(5,  (32, 32, 32))
+  if not model_opponent:
+    network = networks.DuellingMLP(5,  (32, 32, 32))
+  else:
+    network = networks.SplitInputDuelling(num_actions=5,  hidden_size=(32, 32, 32), concat_hidden_size=(8,8), split=15)
   tensorboard_writer = createTensorboardWriter("./train/", "DQN")
 
   if use_pre_trained:
@@ -70,9 +76,18 @@ def main(_):
   else:
     epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=0.3, eps_start=1, eps_end=0)
 
-  agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-4,
+  if not use_recurrence:
+    agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-4,
                   batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
                   checkpoint=True, checkpoint_subpath='./soccer/', target_update_period=200)
+  else:
+      network = networks.R2D2Network(num_actions=environment_spec.actions.num_values,
+                                     lstm_layer_size=20,
+                                     feedforward_layers=(32, 32, 32))
+      agent = r2d2.R2D2(environment_spec, network, burn_in_length=2, trace_length=20,
+                        replay_period=4, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3)
+
+
 
   if use_pre_trained:
       agent.restore()
