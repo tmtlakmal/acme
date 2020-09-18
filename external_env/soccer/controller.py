@@ -22,7 +22,17 @@ class BaseController(abc.ABC):
         self.opp_goal_y_bottom = 0
         self.opp_goal_y_up = 0
 
+        # player stats
+        self.last_move : Actions = Actions.Stand
+        self.moves_freq = np.zeros(shape=4, dtype=np.float32)
+        self.last_coord_x = 0
+        self.last_coord_y = 0
+
+
     def decode_states(self, states):
+        self.last_coord_x = self.my_pos_x
+        self.last_coord_y = self.my_pos_y
+
         if self.player_name == 'A':
             self.my_pos_x, self.my_pos_y = states['player A']
             self.opp_pos_x, self.opp_pos_y = states['player B']
@@ -37,13 +47,37 @@ class BaseController(abc.ABC):
             self.opp_goal_y_bottom, self.opp_goal_x,  self.opp_goal_y_up= states['goal A']
 
 
+
+    def is_towards(self, coord_x, coord_y, coord_y2 = None):
+        if abs(coord_x - self.my_pos_x) < abs(coord_x - self.last_coord_x):
+            return True
+        if abs(coord_y - self.my_pos_y) < abs(coord_y - self.last_coord_y):
+            if coord_y2:
+                if not abs(coord_y2 - self.my_pos_y) < abs(coord_y2 - self.last_coord_y):
+                    return False
+            return True
+        return False
+
+    def update_move_freq(self):
+        alpha = 0.8
+        self.moves_freq[0] *= alpha * (1 if self.is_towards(self.opp_pos_x, self.opp_pos_y) else 0) # toward opponent
+        self.moves_freq[1] *= alpha * (0 if self.is_towards(self.opp_pos_x, self.opp_pos_y) else 1) # avoiding opponent
+        # towards goal
+        self.moves_freq[2] *= alpha * (1 if self.is_towards(self.my_goal_x, self.my_goal_y_up, self.my_goal_y_bottom)  else 0)
+        # towards opponents goal
+        self.moves_freq[3] *= alpha * (1 if self.is_towards(self.opp_goal_x, self.opp_goal_y_up, self.opp_goal_y_bottom) else 0)
+
+    def get_history(self) -> np.array:
+        return np.append(self.moves_freq, self.last_move.value)
+
     @abc.abstractmethod
     def select_action(self, states):
         "select an action given states"
 
 class RandomController(BaseController):
     def select_action(self, states):
-        return Actions(np.random.randint(0,5))
+        self.last_move = Actions(np.random.randint(0, 5))
+        return self.last_move
 
 class OffensiveController(BaseController):
 
@@ -75,6 +109,7 @@ class OffensiveController(BaseController):
                 else:
                     action = Actions.Left
 
+        self.last_move = action
         return action
 
 class DefensiveController(BaseController):
@@ -103,7 +138,7 @@ class DefensiveController(BaseController):
                     action = Actions.Up
                 else:
                     action = Actions.Left
-
+        self.last_move = action
         return action
 
 
