@@ -67,6 +67,7 @@ class R2D2(agent.Agent):
       store_lstm_state: bool = True,
       max_priority_weight: float = 0.9,
       checkpoint: bool = True,
+      tensorboard_writer = None
   ):
 
     extra_spec = {
@@ -121,6 +122,7 @@ class R2D2(agent.Agent):
         learning_rate=learning_rate,
         store_lstm_state=store_lstm_state,
         max_priority_weight=max_priority_weight,
+        tensorboard_writer=tensorboard_writer
     )
 
     self._checkpointer = tf2_savers.Checkpointer(

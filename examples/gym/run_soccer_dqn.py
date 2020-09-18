@@ -85,7 +85,8 @@ def main(_):
                                      lstm_layer_size=20,
                                      feedforward_layers=(32, 32, 32))
       agent = r2d2.R2D2(environment_spec, network, burn_in_length=2, trace_length=20,
-                        replay_period=4, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3)
+                        replay_period=4, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3,
+                        tensorboard_writer=tensorboard_writer)
 
 
 

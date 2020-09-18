@@ -63,6 +63,7 @@ class R2D2Learner(acme.Learner, tf2_savers.TFSaveable):
       store_lstm_state: bool = True,
       max_priority_weight: float = 0.9,
       n_step: int = 5,
+      tensorboard_writer = None
   ):
 
     if not isinstance(network, networks.RNNCore):
@@ -103,6 +104,8 @@ class R2D2Learner(acme.Learner, tf2_savers.TFSaveable):
     # Internalise logging/counting objects.
     self._counter = counting.Counter(counter, 'learner')
     self._logger = logger or loggers.TerminalLogger('learner', time_delta=100.)
+
+    self._tensorboard_writer = tensorboard_writer
 
     # Do not record timestamps until after the first learning step is done.
     # This is to avoid including the time it takes for actors to come online and
@@ -203,6 +206,13 @@ class R2D2Learner(acme.Learner, tf2_savers.TFSaveable):
     # Run the learning step.
     results = self._step()
 
+    if not self._tensorboard_writer is None:
+      current_step = self._counter.get_counts()["learner_steps"]   \
+                     if "learner_steps" in self._counter.get_counts() else 0
+      with self._tensorboard_writer.as_default():
+        with tf.name_scope('dqn policy loss'):
+          for key, val in results.items():
+            tf.summary.scalar(key, val, step=current_step)
     # Compute elapsed time.
     timestamp = time.time()
     elapsed_time = timestamp - self._timestamp if self._timestamp else 0
