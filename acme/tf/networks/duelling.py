@@ -57,3 +57,31 @@ class DuellingMLP(snt.Module):
     q_values = value + advantages  # [B, A]
 
     return q_values
+
+class SplitInputDuelling(snt.Module):
+
+  def __init__(self,
+               num_actions : int,
+               hidden_size : Sequence[int],
+               split: int,
+               concat_hidden_size : Sequence[int]
+  ):
+    super(SplitInputDuelling, self).__init__(name="Split_Deulling_Network")
+
+    self.duelling_network = DuellingMLP(num_actions, hidden_size)
+    self.extra_network = snt.nets.MLP([*hidden_size, num_actions])
+    self.concat_network = snt.nets.MLP([*concat_hidden_size, num_actions])
+    self.split = split
+
+  def __call__(self, inputs : tf.Tensor) -> tf.Tensor :
+    # action values computed using a duelling network
+    # then use a extra network to represent the extra weights
+    #combine two network using concat_network
+    input_1, input_2 = tf.split(inputs, [self.split,inputs.shape[1] - self.split],1)
+    action_values = self.duelling_network(input_1)
+    extra_values = self.extra_network(input_2)
+
+    concat_values = tf.concat([action_values, extra_values], 1)
+    return self.concat_network(concat_values)
+
+
