@@ -40,13 +40,14 @@ class SoccerGame():
                  'has ball': 1 if self.player_A.has_ball() else 0}
         return dict
 
-    def get_serialized_states(self):
+    def get_serialized_states(self, extra=False):
         return np.array(list(self.player_A.get_coordinates() + \
                     self.player_B.get_coordinates() + \
                     self.grid.play_area.get_coordinates() + \
                     self.grid.goal_A.get_coordinates()[1:4] + \
                     self.grid.goal_B.get_coordinates()[1:4] + \
                     (1 if self.player_A.has_ball() else 0,)), dtype=np.float32 )
+
 
     def check_for_winner(self):
         x, y = self.player_B.get_coordinates()

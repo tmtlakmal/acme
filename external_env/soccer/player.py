@@ -17,6 +17,12 @@ class Movable():
         self.coord_x = coord_x
         self.coord_y = coord_y
 
+    def reset(self, coord_x, coord_y):
+        self.coord_x = coord_x
+        self.coord_y = coord_y
+        self.last_coord_x = coord_x
+        self.last_coord_y = coord_y
+
     def is_same_position(self, obj1):
         if (obj1.coord_y == self.coord_y and obj1.coord_x == self.coord_x):
             return True
@@ -26,10 +32,12 @@ class Movable():
     def get_coordinates(self):
         return self.coord_x, self.coord_y
 
+
 class Player(Movable):
     def __int__(self, name):
         super().__init__(name)
         self.is_ball = False
+
 
     def acquire_ball(self):
         #print("Ball acquired: ", self.name)
@@ -40,6 +48,8 @@ class Player(Movable):
 
     def has_ball(self):
         return self.is_ball
+
+
 
 
 
