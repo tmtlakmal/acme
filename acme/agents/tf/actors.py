@@ -119,6 +119,7 @@ class RecurrentActor(core.Actor):
   def __init__(
       self,
       policy_network: snt.RNNCore,
+      epsilon_scheduler: Optional[Union[Schedule, tf.Tensor]] = None,
       adder: Optional[adders.Adder] = None,
       variable_client: Optional[tf2_variable_utils.VariableClient] = None,
   ):
@@ -138,6 +139,10 @@ class RecurrentActor(core.Actor):
     self._state = None
     self._prev_state = None
 
+    self.epsilon_scheduler = epsilon_scheduler
+    self.epsilon = tf.Variable(1.0, trainable=False) if isinstance(self.epsilon_scheduler, Schedule) \
+                   else epsilon_scheduler
+
     # TODO(b/152382420): Ideally we would call tf.function(network) instead but
     # this results in an error when using acme RNN snapshots.
     self._policy = tf.function(policy_network.__call__)
@@ -146,12 +151,15 @@ class RecurrentActor(core.Actor):
     # Add a dummy batch dimension and as a side effect convert numpy to TF.
     batched_obs = tf2_utils.add_batch_dim(observation)
 
+    if isinstance(self.epsilon_scheduler, Schedule):
+      self.epsilon.assign(self.epsilon_scheduler.value())
+
     # Initialize the RNN state if necessary.
     if self._state is None:
       self._state = self._network.initial_state(1)
 
     # Forward.
-    policy_output, new_state = self._policy(batched_obs, self._state)
+    policy_output, new_state = self._policy(batched_obs, self._state, self.epsilon)
 
     # If the policy network parameterises a distribution, sample from it.
     def maybe_sample(output):

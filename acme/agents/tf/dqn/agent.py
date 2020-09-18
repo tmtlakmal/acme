@@ -29,31 +29,11 @@ from acme.tf import utils as tf2_utils
 from acme.utils import paths
 from acme.utils import loggers
 from acme.utils.schedulers import Schedule
-from typing import Any, Callable, Iterable
+from acme.tf.networks import GreedyEpsilonWithDecay
 import reverb
 import sonnet as snt
 import tensorflow as tf
 import trfl
-
-
-### This module is used to run with adaptive epsilon
-class GreedyEpsilonWithDecay(snt.Module):
-    def __init__(self, layers: Iterable[Callable[..., Any]] = None
-                 , name=None):
-        super(GreedyEpsilonWithDecay, self).__init__(name=name)
-        self._layers = list(layers) if layers is not None else []
-
-    def __call__(self, inputs, epsilon, *args, **kwargs):
-        outputs = inputs
-        for i, mod in enumerate(self._layers):
-            if i == 0:
-                # Pass additional arguments to the first layer.
-                outputs = mod(outputs, *args, **kwargs)
-            elif i == len(self._layers) - 1:
-                outputs = mod(outputs, epsilon)
-            else:
-                outputs = mod(outputs)
-        return outputs
 
 
 class DQN(agent.Agent):

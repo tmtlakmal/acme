@@ -16,7 +16,7 @@
 """Recurrent DQN (R2D2) agent implementation."""
 
 import copy
-
+from typing import Optional, Union
 from acme import datasets
 from acme import specs
 from acme.adders import reverb as adders
@@ -27,6 +27,8 @@ from acme.tf import savers as tf2_savers
 from acme.tf import utils as tf2_utils
 from acme.utils import counting
 from acme.utils import loggers
+from acme.tf.networks import GreedyEpsilonWithDecayRNN
+from acme.utils.schedulers import Schedule
 import reverb
 import sonnet as snt
 import tensorflow as tf
@@ -57,7 +59,7 @@ class R2D2(agent.Agent):
       target_update_period: int = 100,
       importance_sampling_exponent: float = 0.2,
       priority_exponent: float = 0.6,
-      epsilon: float = 0.01,
+      epsilon: Optional[Union[Schedule, tf.Tensor]] = None,
       learning_rate: float = 1e-3,
       min_replay_size: int = 1000,
       max_replay_size: int = 1000000,
@@ -130,12 +132,15 @@ class R2D2(agent.Agent):
     self._snapshotter = tf2_savers.Snapshotter(
         objects_to_save={'network': network}, time_delta_minutes=60.)
 
-    policy_network = snt.DeepRNN([
+    if epsilon is None:
+        epsilon = tf.Variable(0.05, trainable=False)
+
+    policy_network = GreedyEpsilonWithDecayRNN([
         network,
-        lambda qs: trfl.epsilon_greedy(qs, epsilon=epsilon).sample(),
+        lambda q, e: trfl.epsilon_greedy(q, e).sample(),
     ])
 
-    actor = actors.RecurrentActor(policy_network, adder)
+    actor = actors.RecurrentActor(policy_network, epsilon, adder)
     observations_per_step = (
         float(replay_period * batch_size) / samples_per_insert)
     super().__init__(
