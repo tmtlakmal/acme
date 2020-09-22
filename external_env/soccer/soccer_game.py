@@ -106,11 +106,35 @@ class SoccerGame():
             self.player_B.acquire_ball()
             self.player_A.give_ball()
 
+    def render(self, clear : bool = False):
+        if clear:
+            print("\033[H\033[J")
+        for y in range(self.grid_Y):
+            for x in range(self.grid_X):
+                if (x,y) == self.player_A.get_coordinates():
+                    if self.player_A.has_ball():
+                        print('A', end=' ')
+                    else:
+                        print('a', end=' ')
+                elif (x,y) == self.player_B.get_coordinates():
+                    if self.player_B.has_ball():
+                        print('B', end=' ')
+                    else:
+                        print('b', end=' ')
+                elif self.grid.is_in_goal('A',x,y) or self.grid.is_in_goal('B',x,y):
+                    print('G', end=' ')
+                else:
+                    print('_', end=' ')
+            print()
+        print("######## ", self.steps, " ########")
+
+import time
+
 if __name__=='__main__':
     game = SoccerGame()
     game.reset()
     done = False
-    playerA = RandomController('A')
+    playerA = OffensiveController('A')
     playerB = DefensiveController('B')
 
     num_win = 0
@@ -126,16 +150,23 @@ if __name__=='__main__':
             b = playerB.select_action(states).value
             outcome = game.step(a,b)
             steps += 1
+            game.render(True)
+
             #print("Player Positions:", Actions(a), game.player_A.get_coordinates(), Actions(b), game.player_B.get_coordinates())
 
             if outcome != 0 or steps == 100:
+
                 if outcome == 1:
+                    print("####### A Won #######")
                     num_win += 1
                 elif outcome == -1:
+                    print("####### B Won #######")
                     num_loose += 1
                 else:
+                    print("####### Tie #######")
                     num_tie +=1
                 done = True
+            time.sleep(1)
         done = False
         game.reset()
 

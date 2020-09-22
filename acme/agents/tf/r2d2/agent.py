@@ -54,7 +54,7 @@ class R2D2(agent.Agent):
       counter: counting.Counter = None,
       logger: loggers.Logger = None,
       discount: float = 0.99,
-      batch_size: int = 32,
+      batch_size: int = 256,
       prefetch_size: int = tf.data.experimental.AUTOTUNE,
       target_update_period: int = 100,
       importance_sampling_exponent: float = 0.2,
@@ -63,10 +63,10 @@ class R2D2(agent.Agent):
       learning_rate: float = 1e-3,
       min_replay_size: int = 1000,
       max_replay_size: int = 1000000,
-      samples_per_insert: float = 32.0,
+      samples_per_insert: float = 256.0,
       store_lstm_state: bool = True,
       max_priority_weight: float = 0.9,
-      checkpoint: bool = True,
+      checkpoint: bool = False,
       tensorboard_writer = None
   ):
 
@@ -135,7 +135,7 @@ class R2D2(agent.Agent):
         objects_to_save={'network': network}, time_delta_minutes=60.)
 
     if epsilon is None:
-        epsilon = tf.Variable(0.05, trainable=False)
+        epsilon = tf.Variable(0.1, trainable=False)
 
     policy_network = GreedyEpsilonWithDecayRNN([
         network,

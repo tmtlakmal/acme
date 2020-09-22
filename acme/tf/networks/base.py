@@ -19,6 +19,7 @@ import abc
 from typing import Tuple, TypeVar, Sequence
 
 from acme import types
+from acme.tf import networks
 import sonnet as snt
 
 State = TypeVar('State')
@@ -56,6 +57,34 @@ class RNNCore(snt.RNNCore, abc.ABC):
     Returns:
       Nested sequence output of RNN, and final state.
     """
+class R2D2DeullingNetwork(RNNCore):
+
+  def __init__(self, num_actions: int,
+                    lstm_layer_size: int,
+                    feedforward_layers : Sequence[int]
+  ):
+    super().__init__(name='R2D2Network')
+
+    self._flattern =  snt.Flatten()
+    self._lstm = snt.LSTM(lstm_layer_size)
+    self._duelling = networks.DuellingMLP(num_actions, feedforward_layers)
+    #self._duelling = snt.nets.MLP([*feedforward_layers, num_actions])
+
+
+  def __call__(self, inputs, state):
+    flatten_input = self._flattern(inputs)
+    lstm_out, new_state = self._lstm(flatten_input, state)
+    return self._duelling(lstm_out), new_state
+
+  def initial_state(self, batch_size: int, **kwargs):
+    return self._lstm.initial_state(batch_size)
+
+  def unroll(self, inputs, state, sequence_length):
+    flatten_input = snt.BatchApply(self._flattern)(inputs)
+    lstm_out, new_state = snt.static_unroll(self._lstm, flatten_input, state, sequence_length)
+    action_values = snt.BatchApply(self._duelling)(lstm_out)
+    return action_values, new_state
+
 class R2D2Network(RNNCore):
 
   def __init__(self, num_actions: int,

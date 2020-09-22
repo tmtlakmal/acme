@@ -200,7 +200,8 @@ class R2D2Learner(acme.Learner, tf2_savers.TFSaveable):
         keys=keys[:, 0],
         priorities=tf.cast(priorities, tf.float64))
 
-    return {'loss': loss}
+    return {'loss': loss,
+            'td_error': tf.reduce_mean(extra.targets)}
 
   def step(self):
     # Run the learning step.

@@ -45,7 +45,9 @@ class SoccerGym(gym.Env):
 
     def reset(self):
         #self.opponent = OffensiveController('B') if np.random.randint(0,2) == 1 else DefensiveController('B')
-        self.opponent = np.random.choice([OffensiveController('B')], 1)[0]
+        self.opponent = np.random.choice([OffensiveController('B'),
+                                          DefensiveController('B'),
+                                          ], 1)[0]
         self.game.reset()
         self.step_count = 0
 
@@ -71,7 +73,7 @@ class SoccerGym(gym.Env):
         return states, float(self.game.check_for_winner()),  done, {}
 
     def render(self, mode='human'):
-        pass
+        self.game.render(True)
 
     def close(self):
         pass
