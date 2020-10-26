@@ -70,6 +70,85 @@ class GymWrapper(dm_env.Environment):
   def action_spec(self) -> types.NestedSpec:
     return self._action_spec
 
+  #def reward_spec(self) -> types.NestedSpec:
+  #  return specs.Array(shape=(2,), dtype=float, name='reward')
+
+
+
+  @property
+  def environment(self) -> gym.Env:
+    """Returns the wrapped environment."""
+    return self._environment
+
+  def __getattr__(self, name: str):
+    # Expose any other attributes of the underlying environment.
+    return getattr(self._environment, name)
+
+  def close(self):
+    self._environment.close()
+
+class GymWrapperSplit(dm_env.Environment):
+  """Environment wrapper for OpenAI Gym environments."""
+
+  # Note: we don't inherit from base.EnvironmentWrapper because that class
+  # assumes that the wrapped environment is a dm_env.Environment.
+
+  def __init__(self, environment: gym.Env):
+
+    self._environment = environment
+    self._reset_next_step = True
+
+    # Convert action and observation specs.
+    obs_space = self._environment.observation_space
+    act_space = self._environment.action_space
+    self._observation_spec = _convert_to_spec(obs_space, name='observation')
+    self._action_spec = _convert_to_spec(act_space, name='action')
+
+  def reset(self) -> dm_env.TimeStep:
+    """Resets the episode."""
+    self._reset_next_step = False
+    observation = self._environment.reset()
+    return dm_env.restart(observation)
+
+  def step(self, action: types.NestedArray) -> dm_env.TimeStep:
+    """Steps the environment."""
+    if self._reset_next_step:
+      return self.reset()
+
+    observation, reward, done, info = self._environment.step(action)
+    self._reset_next_step = done
+    if done:
+      truncated = info.get('TimeLimit.truncated', False)
+      if truncated:
+        return dm_env.truncation(reward, observation)
+      return dm_env.termination(reward, observation)
+    return dm_env.transition(reward, observation)
+
+  def get_step(self) -> dm_env.TimeStep:
+    if self._reset_next_step:
+      return self.reset()
+
+    observation, reward, done, info = self._environment.get_step()
+    self._reset_next_step = done
+
+    if done:
+      truncated = info.get('TimeLimit.truncated', False)
+      if truncated:
+        return dm_env.truncation(reward, observation)
+      return dm_env.termination(reward, observation)
+    return dm_env.transition(reward, observation)
+
+  def observation_spec(self) -> types.NestedSpec:
+    return self._observation_spec
+
+  def action_spec(self) -> types.NestedSpec:
+    return self._action_spec
+
+  #def reward_spec(self) -> types.NestedSpec:
+  #  return specs.Array(shape=(2,), dtype=float, name='reward')
+
+
+
   @property
   def environment(self) -> gym.Env:
     """Returns the wrapped environment."""
@@ -98,6 +177,7 @@ def _convert_to_spec(space: gym.Space, name: str = None) -> types.NestedSpec:
     A dm_env spec or nested structure of specs, corresponding to the input
     space.
   """
+
   if isinstance(space, spaces.Discrete):
     return specs.DiscreteArray(num_values=space.n, dtype=space.dtype, name=name)
 

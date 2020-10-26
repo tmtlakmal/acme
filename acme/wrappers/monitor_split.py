@@ -1,4 +1,4 @@
-__all__ = ['Monitor_save_step_data']
+__all__ = ['Monitor_save_step_data_split']
 
 import csv
 import json
@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import csv
 import pandas as pd
 
-class Monitor_save_step_data(gym.Wrapper):
+class Monitor_save_step_data_split(gym.Wrapper):
     EXT = "monitor.csv"
     file_handler = None
 
@@ -35,18 +35,18 @@ class Monitor_save_step_data(gym.Wrapper):
         :param reset_keywords: (tuple) extra keywords for the reset call, if extra parameters are needed at reset
         :param info_keywords: (tuple) extra information to log, from the information return of environment.step
         """
-        super(Monitor_save_step_data, self).__init__(env=env)
+        super(Monitor_save_step_data_split, self).__init__(env=env)
         self.t_start = time.time()
         self.file_name = step_data_file
         if filename is None:
             self.file_handler = None
             self.logger = None
         else:
-            if not filename.endswith(Monitor_save_step_data.EXT):
+            if not filename.endswith(Monitor_save_step_data_split.EXT):
                 if os.path.isdir(filename):
-                    filename = os.path.join(filename, Monitor_save_step_data.EXT)
+                    filename = os.path.join(filename, Monitor_save_step_data_split.EXT)
                 else:
-                    filename = filename + "." + Monitor_save_step_data.EXT
+                    filename = filename + "." + Monitor_save_step_data_split.EXT
             self.file_handler = open(filename, "wt")
             self.file_handler.write('#%s\n' % json.dumps({"t_start": self.t_start, 'env_id': env.spec and env.spec.id}))
             self.logger = csv.DictWriter(self.file_handler,
@@ -120,12 +120,17 @@ class Monitor_save_step_data(gym.Wrapper):
 
         self.mask.append([False if i < len(self.actions) else True for i in range(47)])
 
+        self.action = 0
     def fill_array(self, array, fill_value):
         fill = [fill_value for i in range(47 - len(array))]
         concat = array + fill
         return concat
 
-    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, Dict[Any, Any]]:
+    def step(self, action):
+        self.action = action
+        return self.env.step(action)
+
+    def get_step(self) -> Tuple[np.ndarray, float, bool, Dict[Any, Any]]:
         """
         Step the environment with the given action
 
@@ -138,10 +143,10 @@ class Monitor_save_step_data(gym.Wrapper):
 
         if self.needs_reset:
             raise RuntimeError("Tried to step environment that needs reset")
-        observation, reward, done, info = self.env.step(action)
+        observation, reward, done, info = self.env.get_step()
 
         self.rewards.append(reward)
-        self.actions.append(action)
+        self.actions.append(self.action)
         self.speeds.append(observation[0])
         self.times.append(observation[1])
         self.distance.append(observation[2])

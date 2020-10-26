@@ -53,3 +53,6 @@ class DQN(snt.Module):
     q_values = advantages  # [B, A]
 
     return q_values
+
+  def initial_state(self, batch_size: int, **kwargs):
+    return tf.zeros(shape=[batch_size], dtype=tf.float64)

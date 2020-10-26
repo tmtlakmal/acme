@@ -128,9 +128,17 @@ class DQNLearner(acme.Learner, tf2_savers.TFSaveable):
       q_t_value = self._target_network(o_t)
       q_t_selector = self._network(o_t)
 
+      #discount_mask = tf.greater(o_t[:,3], -10)
+      #indices = tf.where(discount_mask)
+      #updates = tf.fill(indices.shape[0], 0.7)
+      #
+      #mask = tf.ones(shape=d_t.shape)
+      #b_t = tf.tensor_scatter_nd_update(mask, indices, updates)
+      #d_t *= b_t
       # The rewards and discounts have to have the same type as network values.
       r_t = tf.cast(r_t, q_tm1.dtype)
       #r_t = tf.clip_by_value(r_t, -1., 1.)
+      #d_t = tf.cast(d_t, q_tm1.dtype) * tf.cast(d_t_e['discount'], q_tm1.dtype)
       d_t = tf.cast(d_t, q_tm1.dtype) * tf.cast(self._discount, q_tm1.dtype)
 
       # Compute the loss.

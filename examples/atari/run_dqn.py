@@ -16,21 +16,28 @@
 """Run DQN on Atari."""
 
 import functools
-
+from acme.utils import paths
 from absl import app
 from absl import flags
 import acme
 from acme import wrappers
-from acme.agents.tf import dqn
+from acme.agents.tf import dqn, r2d2
 from acme.tf import networks
 import dm_env
 import gym
-
-flags.DEFINE_string('level', 'PongNoFrameskip-v4', 'Which Atari level to play.')
+import tensorflow as tf
+flags.DEFINE_string('level', 'Pong-v0', 'Which Atari level to play.')
 flags.DEFINE_integer('num_episodes', 1000, 'Number of episodes to train for.')
 
 FLAGS = flags.FLAGS
 
+
+
+def createTensorboardWriter(tensorboard_log_dir, suffix):
+    id = paths.find_next_path_id(tensorboard_log_dir, suffix) + 1
+    train_log_dir = tensorboard_log_dir + suffix + "_"+ str(id)
+    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+    return train_summary_writer
 
 def make_environment(evaluation: bool = False) -> dm_env.Environment:
 
@@ -53,11 +60,12 @@ def make_environment(evaluation: bool = False) -> dm_env.Environment:
 def main(_):
   env = make_environment()
   env_spec = acme.make_environment_spec(env)
-  network = networks.DQNAtariNetwork(env_spec.actions.num_values)
+  network = networks.R2D2AtariNetwork(env_spec.actions.num_values)
+  tensorboard_writer = createTensorboardWriter("./train/", "DQN")
 
-  agent = dqn.DQN(env_spec, network)
+  agent = r2d2.R2D2(env_spec, network, tensorboard_writer=tensorboard_writer)
 
-  loop = acme.EnvironmentLoop(env, agent)
+  loop = acme.EnvironmentLoop(env, agent, tensorboard_writer=tensorboard_writer)
   loop.run(FLAGS.num_episodes)
 
 

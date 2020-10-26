@@ -20,7 +20,7 @@ from acme.wrappers.base import EnvironmentWrapper
 from acme.wrappers.base import wrap_all
 from acme.wrappers.frame_stacking import FrameStackingWrapper
 from acme.wrappers.gym_wrapper import GymAtariAdapter
-from acme.wrappers.gym_wrapper import GymWrapper
+from acme.wrappers.gym_wrapper import GymWrapper, GymWrapperSplit
 from acme.wrappers.observation_action_reward import ObservationActionRewardWrapper
 from acme.wrappers.single_precision import SinglePrecisionWrapper
 from acme.wrappers.monitor import Monitor_save_step_data
