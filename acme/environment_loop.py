@@ -25,6 +25,7 @@ from acme.utils import loggers
 
 import tensorflow as tf
 import dm_env
+import numpy as np
 
 
 class EnvironmentLoop(core.Worker):
@@ -107,7 +108,10 @@ class EnvironmentLoop(core.Worker):
                      if "steps" in self._counter.get_counts() else 0
       with self._tensorboard_writer.as_default():
         with tf.name_scope('environment loop'):
-          tf.summary.scalar('episode_reward', episode_return, step=current_step)
+          if isinstance(episode_return, np.ndarray):
+            tf.summary.scalar('episode_reward', sum(episode_return), step=current_step)
+          else:
+            tf.summary.scalar('episode_reward', episode_return, step=current_step)
 
     result = {
         'episode_length': episode_steps,

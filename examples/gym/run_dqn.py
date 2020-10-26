@@ -15,6 +15,7 @@
 
 """Run DQN on Atari."""
 from acme.agents.tf import dqn
+from acme.agents.tf import MOdqn
 from absl import app
 from absl import flags
 import acme
@@ -24,16 +25,18 @@ from acme import wrappers
 from acme.tf import networks
 from acme.utils import paths
 from external_env.vehicle_controller.vehicle_env import Vehicle_env
-from acme.agents import agent
+from external_env.vehicle_controller.vehicle_env_mp import Vehicle_env_mp
+from acme.agents import  agent
 
 import dm_env
 import tensorflow as tf
 
 
-def make_environment() -> dm_env.Environment:
+def make_environment(multi_objective=True) -> dm_env.Environment:
 
-  environment =  Vehicle_env(1,3)
-  environment = wrappers.Monitor_save_step_data(environment)
+  environment =  Vehicle_env_mp(1,3, front_vehicle=True, multi_objective=multi_objective)
+  step_data_file = "episode_data.csv" if multi_objective else "episode_data_single.csv"
+  environment = wrappers.Monitor_save_step_data(environment, step_data_file=step_data_file)
   # Make sure the environment obeys the dm_env.Environment interface.
   environment = wrappers.GymWrapper(environment)
   environment = wrappers.SinglePrecisionWrapper(environment)
@@ -51,33 +54,38 @@ def createNextFileName(tensorboard_log_dir, suffix):
     return  tensorboard_log_dir + suffix + "_"+ str(id)
 
 flags.DEFINE_integer('num_episodes', 10000, 'Number of episodes to train for.')
-flags.DEFINE_integer('num_steps', 800000, 'Number of steps to train for.')
+flags.DEFINE_integer('num_steps', 400000, 'Number of steps to train for.')
 FLAGS = flags.FLAGS
 
 def main(_):
 
   # Parameters to save and restore
-  use_pre_trained = True
-
-  env = make_environment()
+  use_pre_trained = False
+  multi_objective = True
+  env = make_environment(multi_objective)
   environment_spec = specs.make_environment_spec(env)
-  network = networks.DuellingMLP(3,  (32, 32, 32))
+  network = networks.DuellingMLP(3,  (128, 128))
   tensorboard_writer = createTensorboardWriter("./train/", "DQN")
 
   if use_pre_trained:
     epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=1.0, eps_start=0, eps_end=0)
   else:
-    epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=0.25, eps_start=1, eps_end=0)
+    epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=0.3, eps_start=1, eps_end=0)
 
-  agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3,
+  if multi_objective:
+      agent = MOdqn.MODQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3,
                   batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
                   checkpoint=True, checkpoint_subpath='./checkpoints/', target_update_period=200)
+  else:
+      agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3,
+                          batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
+                          checkpoint=True, checkpoint_subpath='./checkpoints/', target_update_period=200)
 
   if use_pre_trained:
       agent.restore()
 
-  #loop = acme.EnvironmentLoop(env, agent, tensorboard_writer=tensorboard_writer)
-  #loop.run(num_steps=FLAGS.num_steps)
+  loop = acme.EnvironmentLoop(env, agent, tensorboard_writer=tensorboard_writer)
+  loop.run(num_steps=FLAGS.num_steps)
   #agent.save_checkpoints(force=True)
 
   test_trained_agent(agent, env, 4000)
