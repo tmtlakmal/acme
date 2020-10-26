@@ -33,6 +33,7 @@ import reverb
 import sonnet as snt
 import tensorflow as tf
 import tree
+import trfl
 
 Variables = List[np.ndarray]
 
@@ -152,14 +153,44 @@ class R2D2Learner(acme.Learner, tf2_savers.TFSaveable):
                                                        target_core_state,
                                                        self._sequence_length)
 
+
+      #index = np.random.choice(5, 1, p=[0.6, 0.2, 0.1, 0.1, 0.1])[0]
+      index = 0
+      #q_tm1, _ =  self._network(observations[index], None)
+      #q_t_value, _ =  self._target_network(observations[-1], None)
+      #q_t_selector, _ =  self._network(observations[-1], None)
+
+      #q_tm1 =   tree.map_structure(lambda x: x[:-1], q_values)
+      #q_t_selector =  tree.map_structure(lambda x: x[1:], q_values)
+      #q_t_value = tree.map_structure(lambda x: x[1:], target_q_values)
+      #
+      #q_tm1 = q_tm1[0,:,:]
+      #q_t_selector = q_t_selector[-1,:,:]
+      #q_t_value = q_t_value[-1,:,:]
+
+
       # Compute the target policy distribution (greedy).
       greedy_actions = tf.argmax(q_values, output_type=tf.int32, axis=-1)
       target_policy_probs = tf.one_hot(
           greedy_actions, depth=self._num_actions, dtype=q_values.dtype)
 
       # Compute the transformed n-step loss.
-      rewards = tree.map_structure(lambda x: x[:-1], rewards)
-      discounts = tree.map_structure(lambda x: x[:-1], discounts)
+      rewards = tree.map_structure(lambda x: x[index:-1], rewards)
+      discounts = tree.map_structure(lambda x: x[index:-1], discounts)
+
+      #act = tree.map_structure(lambda x: x[:-1], actions)
+      #r = tf.reduce_sum(rewards, axis=[0])
+      #act = actions[index]
+      #
+      #d = tf.reduce_min(discounts, axis=[0])
+      #
+      #r = tf.cast(r, q_tm1.dtype)
+      ##r = tf.clip_by_value(r, -1., 1.)
+      #d = tf.cast(d, q_tm1.dtype) * tf.cast(self._discount, q_tm1.dtype)
+      #
+      #loss_dq, extra_dq = trfl.double_qlearning(q_tm1, act, r, d, q_t_value,
+      #                                 q_t_selector)
+
       loss, extra = losses.transformed_n_step_loss(
           qs=q_values,
           targnet_qs=target_q_values,
@@ -169,12 +200,12 @@ class R2D2Learner(acme.Learner, tf2_savers.TFSaveable):
           target_policy_probs=target_policy_probs,
           bootstrap_n=self._n_step,
       )
-
+      #loss = losses.huber(extra_dq.td_error, 1.)
       # Calculate importance weights and use them to scale the loss.
       sample_info = sample.info
       keys, probs = sample_info.key, sample_info.probability
       probs = tf2_utils.batch_to_sequence(probs)
-      importance_weights = 1. / (self._max_replay_size * probs)  # [T, B]
+      importance_weights = 1. / (probs)  # [T, B]
       importance_weights **= self._importance_sampling_exponent
       importance_weights /= tf.reduce_max(importance_weights)
       loss *= tf.cast(importance_weights, tf.float32)  # [T, B]
@@ -193,7 +224,7 @@ class R2D2Learner(acme.Learner, tf2_savers.TFSaveable):
 
     # Compute updated priorities.
     priorities = compute_priority(extra.errors, self._max_priority_weight)
-
+    #priorities = tf.squeeze(tf.cast(tf.abs(extra_dq.td_error), tf.float64))
     # Compute priorities and add an op to update them on the reverb side.
     self._reverb_client.update_priorities(
         table=adders.DEFAULT_PRIORITY_TABLE,
@@ -201,7 +232,67 @@ class R2D2Learner(acme.Learner, tf2_savers.TFSaveable):
         priorities=tf.cast(priorities, tf.float64))
 
     return {'loss': loss,
-            'td_error': tf.reduce_mean(extra.targets)}
+            'td_error': tf.reduce_mean(extra.errors)}
+
+  def _step_2(self) -> Dict[str, tf.Tensor]:
+    """Do a step of SGD and update the priorities."""
+
+    # Pull out the data needed for updates/priorities.
+    inputs = next(self._iterator)
+    o_tm1, a_tm1, r_t, d_t, o_t = inputs.data
+    keys, probs = inputs.info[:2]
+
+    with tf.GradientTape() as tape:
+      # Evaluate our networks.
+      q_tm1, _ = self._network(o_tm1)
+      q_t_value, _ = self._target_network(o_t)
+      q_t_selector, _ = self._network(o_t)
+
+      # The rewards and discounts have to have the same type as network values.
+      r_t = tf.cast(r_t, q_tm1.dtype)
+      #r_t = tf.clip_by_value(r_t, -1., 1.)
+      d_t = tf.cast(d_t, q_tm1.dtype) * tf.cast(self._discount, q_tm1.dtype)
+
+      # Compute the loss.
+      _, extra = trfl.double_qlearning(q_tm1, a_tm1, r_t, d_t, q_t_value,
+                                       q_t_selector)
+      loss = losses.huber(extra.td_error, 1.0)
+      original_loss = loss
+      # Get the importance weights.
+      #importance_weights = 1. / probs  # [B]
+      #importance_weights **= self._importance_sampling_exponent
+      #importance_weights /= tf.reduce_max(importance_weights)
+      #
+      ## Reweight.
+      #
+      #loss *= tf.cast(importance_weights, loss.dtype)  # [B]
+      loss = tf.reduce_mean(loss, axis=[0])  # []
+
+    # Do a step of SGD.
+    gradients = tape.gradient(loss, self._network.trainable_variables)
+    self._optimizer.apply(gradients, self._network.trainable_variables)
+
+    # Update the priorities in the replay buffer.
+    if self._reverb_client:
+      priorities = tf.cast(tf.abs(extra.td_error), tf.float64)
+      #self._reverb_client.update_priorities(
+      #    table=adders.DEFAULT_PRIORITY_TABLE, keys=keys, priorities=priorities)
+
+    # Periodically update the target network.
+    if tf.math.mod(self._num_steps, self._target_update_period) == 0:
+      for src, dest in zip(self._network.variables,
+                           self._target_network.variables):
+        dest.assign(src)
+    self._num_steps.assign_add(1)
+
+    # Report loss & statistics for logging.
+    fetches = {
+        'loss': loss,
+        'original loss': tf.reduce_mean(original_loss),
+        'td_error': tf.reduce_mean(extra.td_error)
+    }
+
+    return fetches
 
   def step(self):
     # Run the learning step.

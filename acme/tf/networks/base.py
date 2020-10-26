@@ -21,7 +21,7 @@ from typing import Tuple, TypeVar, Sequence
 from acme import types
 from acme.tf import networks
 import sonnet as snt
-
+import  tensorflow as  tf
 State = TypeVar('State')
 
 
@@ -106,3 +106,26 @@ class R2D2Network(RNNCore):
 
   def unroll(self, inputs, state, sequence_length):
     return snt.static_unroll(self._net, inputs, state, sequence_length)
+
+class R2D2NetworkFake(RNNCore):
+
+  def __init__(self, num_actions: int,
+                    lstm_layer_size: int,
+                    feedforward_layers : Sequence[int]
+  ):
+    super().__init__(name='R2D2Network')
+    self._net = networks.DQN(5,[128,128])
+        #snt.Flatten(),
+        #snt.nets.MLP([lstm_layer_size]),
+        #snt.nets.MLP([*feedforward_layers, num_actions])
+    #])
+
+  def __call__(self, inputs, state=None):
+    return self._net(inputs), state
+
+  def initial_state(self, batch_size: int, **kwargs):
+    return tf.zeros(shape=[batch_size], dtype=tf.float64)
+
+
+  def unroll(self, inputs, state, sequence_length):
+    return tf.stack([self._net(inputs[0]),self._net(inputs[1])]), state

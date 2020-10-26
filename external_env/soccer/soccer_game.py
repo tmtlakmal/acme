@@ -130,16 +130,18 @@ class SoccerGame():
 
 import time
 
+np.random.seed(8)
 if __name__=='__main__':
     game = SoccerGame()
     game.reset()
     done = False
-    playerA = OffensiveController('A')
-    playerB = DefensiveController('B')
 
-    num_win = 0
-    num_tie = 0
-    num_loose = 0
+    playerA = OffensiveController('A')
+    playerB = RandomController('B')
+
+    num_win = []
+    num_tie = []
+    num_loose = []
 
     for i in range(5000):
         steps = 0
@@ -150,7 +152,7 @@ if __name__=='__main__':
             b = playerB.select_action(states).value
             outcome = game.step(a,b)
             steps += 1
-            game.render(True)
+            #game.render(True)
 
             #print("Player Positions:", Actions(a), game.player_A.get_coordinates(), Actions(b), game.player_B.get_coordinates())
 
@@ -158,16 +160,17 @@ if __name__=='__main__':
 
                 if outcome == 1:
                     print("####### A Won #######")
-                    num_win += 1
+                    num_win.append(i)
                 elif outcome == -1:
                     print("####### B Won #######")
-                    num_loose += 1
+                    num_loose.append(i)
                 else:
                     print("####### Tie #######")
-                    num_tie +=1
+                    num_tie.append(i)
                 done = True
-            time.sleep(1)
+            #time.sleep(1)
         done = False
         game.reset()
 
-    print("Num wins: ", num_win, " Num loose: ", num_loose, " Num tie", num_tie)
+    print("Num wins: ", len(num_win), " Num loose: ", len(num_loose), " Num tie", len(num_tie))
+    print(num_loose)

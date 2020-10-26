@@ -29,8 +29,8 @@ from acme.agents import agent
 
 import dm_env
 import tensorflow as tf
-
-
+import numpy as np
+np.random.seed(0)
 
 def make_environment(model_opponent=False) -> dm_env.Environment:
 
@@ -53,41 +53,44 @@ def createNextFileName(tensorboard_log_dir, suffix):
     return  tensorboard_log_dir + suffix + "_"+ str(id)
 
 flags.DEFINE_integer('num_episodes', 10000, 'Number of episodes to train for.')
-flags.DEFINE_integer('num_steps', 1600000, 'Number of steps to train for.')
+flags.DEFINE_integer('num_steps', 800000, 'Number of steps to train for.')
 FLAGS = flags.FLAGS
+
+tf.random.set_seed(8)
 
 def main(_):
 
   # Parameters to save and restore
   use_pre_trained = False
-  use_recurrence = True
+  use_recurrence = False
   model_opponent = False
   simulate_only = False
 
   env = make_environment(model_opponent)
   environment_spec = specs.make_environment_spec(env)
   if not model_opponent:
-    network = networks.DuellingMLP(5,  (32, 32, 32))
+    network = networks.DuellingMLP(5,  [32, 32, 32])
   else:
     network = networks.SplitInputDuelling(num_actions=5,  hidden_size=(32, 32, 32), concat_hidden_size=(8,8), split=15)
 
   if use_pre_trained:
     epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=1.0, eps_start=0, eps_end=0)
   else:
-    epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=0.1, eps_start=1, eps_end=0)
+    epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=0.3, eps_start=1, eps_end=0.02)
 
   tensorboard_writer = createTensorboardWriter("./train/", "DQN")
   if not use_recurrence:
     agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-4,
                   batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
-                  checkpoint=True, checkpoint_subpath='./soccer/', target_update_period=100)
+                  checkpoint=True, checkpoint_subpath='./soccer/', target_update_period=400)
   else:
       network = networks.R2D2DeullingNetwork(num_actions=environment_spec.actions.num_values,
-                                     lstm_layer_size=32,
-                                     feedforward_layers=[32, 32, 32])
-      agent = r2d2.R2D2(environment_spec, network, burn_in_length=10, trace_length=10, prefetch_size=4,
+                                     lstm_layer_size=128,
+                                     feedforward_layers=[128])
+      agent = r2d2.R2D2(environment_spec, network, burn_in_length=4, trace_length=10, prefetch_size=4,
                         replay_period=1, discount=1, epsilon=epsilon_schedule, learning_rate=1e-4,
-                        tensorboard_writer=tensorboard_writer, target_update_period=100, samples_per_insert=256.0)
+                        tensorboard_writer=tensorboard_writer, target_update_period=400, samples_per_insert=256.0,
+                        store_lstm_state=True)
 
   if use_pre_trained:
       agent.restore()

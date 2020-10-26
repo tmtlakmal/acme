@@ -27,9 +27,10 @@ from acme.tf import savers as tf2_savers
 from acme.tf import utils as tf2_utils
 from acme.utils import counting
 from acme.utils import loggers
-from acme.tf.networks import GreedyEpsilonWithDecayRNN
+from acme.tf.networks import GreedyEpsilonWithDecayRNN, GreedyEpsilonWithDecay
 from acme.utils.schedulers import Schedule
 import reverb
+from reverb import reverb_types
 import sonnet as snt
 import tensorflow as tf
 import trfl
@@ -62,8 +63,8 @@ class R2D2(agent.Agent):
       epsilon: Optional[Union[Schedule, tf.Tensor]] = None,
       learning_rate: float = 1e-3,
       min_replay_size: int = 1000,
-      max_replay_size: int = 1000000,
-      samples_per_insert: float = 256.0,
+      max_replay_size: int = 100000,
+      samples_per_insert: float = 32.0,
       store_lstm_state: bool = True,
       max_priority_weight: float = 0.9,
       checkpoint: bool = False,
@@ -81,12 +82,13 @@ class R2D2(agent.Agent):
         remover=reverb.selectors.Fifo(),
         max_size=max_replay_size,
         rate_limiter=reverb.rate_limiters.MinSize(min_size_to_sample=1),
-        signature=adders.SequenceAdder.signature(environment_spec,
-                                                   extra_spec))
+        signature=adders.SequenceAdder.signature(environment_spec, extra_spec))
+        #signature=adders.NStepTransitionAdder.signature(environment_spec))
     self._server = reverb.Server([replay_table], port=None)
     address = f'localhost:{self._server.port}'
 
     sequence_length = burn_in_length + trace_length + 1
+    n_step = 5
     # Component to add things into replay.
     adder = adders.SequenceAdder(
         client=reverb.Client(address),
@@ -99,11 +101,24 @@ class R2D2(agent.Agent):
         server_address=address,
         batch_size=batch_size,
         prefetch_size=prefetch_size,
-        sequence_length=sequence_length)
+        sequence_length=sequence_length,
+        parallel_batch_optimization=False)
+
+    if epsilon is None:
+        epsilon = tf.Variable(0.05, trainable=False)
+
+    policy_network = GreedyEpsilonWithDecayRNN([
+        network,
+        lambda q, e: trfl.epsilon_greedy(q, e).sample(),
+    ])
+
 
     target_network = copy.deepcopy(network)
     tf2_utils.create_variables(network, [environment_spec.observations])
     tf2_utils.create_variables(target_network, [environment_spec.observations])
+
+    #actor = actors.FeedForwardActor(policy_network, epsilon, adder)
+    actor = actors.RecurrentActor(policy_network, epsilon, adder)
 
     learner = learning.R2D2Learner(
         environment_spec=environment_spec,
@@ -122,7 +137,8 @@ class R2D2(agent.Agent):
         learning_rate=learning_rate,
         store_lstm_state=store_lstm_state,
         max_priority_weight=max_priority_weight,
-        tensorboard_writer=tensorboard_writer
+        tensorboard_writer=tensorboard_writer,
+        n_step=n_step
     )
 
     self._checkpointer = tf2_savers.Checkpointer(
@@ -134,15 +150,7 @@ class R2D2(agent.Agent):
     self._snapshotter = tf2_savers.Snapshotter(
         objects_to_save={'network': network}, time_delta_minutes=60.)
 
-    if epsilon is None:
-        epsilon = tf.Variable(0.1, trainable=False)
 
-    policy_network = GreedyEpsilonWithDecayRNN([
-        network,
-        lambda q, e: trfl.epsilon_greedy(q, e).sample(),
-    ])
-
-    actor = actors.RecurrentActor(policy_network, epsilon, adder)
     observations_per_step = (
         float(replay_period * batch_size) / samples_per_insert)
     super().__init__(
