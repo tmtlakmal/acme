@@ -26,4 +26,4 @@ from acme.adders.reverb.base import Step
 # Internal imports.
 from acme.adders.reverb.episode import EpisodeAdder
 from acme.adders.reverb.sequence import SequenceAdder
-from acme.adders.reverb.transition import NStepTransitionAdder
+from acme.adders.reverb.transition import NStepTransitionAdder, MoNStepTransitionAdder
