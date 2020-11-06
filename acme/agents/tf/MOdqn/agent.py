@@ -61,6 +61,7 @@ class MODQN(agent.Agent):
       epsilon: Optional[Union[Schedule, tf.Tensor]] = None,
       learning_rate: float = 1e-3,
       discount: float = 0.99,
+      discount_2 : float = 0.99,
       logger: loggers.Logger = None,
       checkpoint: bool = True,
       checkpoint_subpath: str = '~/acme/',
@@ -114,7 +115,8 @@ class MODQN(agent.Agent):
     adder = adders.MoNStepTransitionAdder(
         client=reverb.Client(address),
         n_step=n_step,
-        discount=discount)
+        discount=discount,
+        discount_2=discount_2)
 
     # The dataset provides an interface to sample from replay.
     replay_client = reverb.TFClient(address)

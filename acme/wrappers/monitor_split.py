@@ -138,7 +138,7 @@ class Monitor_save_step_data_split(gym.Wrapper):
         :return: (Tuple[np.ndarray, float, bool, Dict[Any, Any]]) observation, reward, done, information
         """
         self.iter += 1
-        if ( self.iter % 50000 == 0 and self.iter > 1):
+        if ( self.iter % 10000 == 0 and self.iter > 1):
             self.prepare_dataFrame()
 
         if self.needs_reset:
@@ -184,6 +184,9 @@ class Monitor_save_step_data_split(gym.Wrapper):
         self.total_steps += 1
         return observation, reward, done, info
 
+    def set_id(self, id):
+        self.env.set_id(id)
+
     def prepare_dataFrame(self):
         new_list = []
         for index, (action, speed, time, distance, mask, gap) in enumerate(zip(self.episode_actions,
@@ -208,7 +211,7 @@ class Monitor_save_step_data_split(gym.Wrapper):
             wr = csv.writer(myFile)
             wr.writerows(self.episode_actions)
 
-        super(Monitor_save_step_data, self).close()
+        super(Monitor_save_step_data_split, self).close()
         if self.file_handler is not None:
             self.file_handler.close()
 

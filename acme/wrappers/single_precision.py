@@ -33,6 +33,9 @@ class SinglePrecisionWrapper(base.EnvironmentWrapper):
         discount=_convert_value(timestep.discount),
         observation=_convert_value(timestep.observation))
 
+  def set_id(self, id):
+    self._environment.set_id(id)
+
   def step(self, action) -> dm_env.TimeStep:
     return self._convert_timestep(self._environment.step(action))
 
@@ -56,22 +59,6 @@ class SinglePrecisionWrapper(base.EnvironmentWrapper):
 
   def close(self):
     self.environment.close()
-
-
-def _convert_spec(nested_spec: types.NestedSpec) -> types.NestedSpec:
-  """Convert a nested spec."""
-
-  def _convert_single_spec(spec: specs.Array):
-    """Convert a single spec."""
-    if np.issubdtype(spec.dtype, np.float64):
-      dtype = np.float32
-    elif np.issubdtype(spec.dtype, np.int64):
-      dtype = np.int32
-    else:
-      dtype = spec.dtype
-    return spec.replace(dtype=dtype)
-
-  return tree.map_structure(_convert_single_spec, nested_spec)
 
 class SinglePrecisionWrapperSplit(base.EnvironmentWrapper):
   """Wrapper which converts environments from double- to single-precision."""

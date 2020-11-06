@@ -245,6 +245,7 @@ class MoNStepTransitionAdder(base.ReverbAdder):
       client: reverb.Client,
       n_step: int,
       discount: float,
+      discount_2: float,
       priority_fns: Optional[base.PriorityFnMapping] = None,
   ):
     """Creates an N-step transition adder.
@@ -265,7 +266,7 @@ class MoNStepTransitionAdder(base.ReverbAdder):
     # Makes the additional discount a float32, which means that it will be
     # upcast if rewards/discounts are float64 and left alone otherwise.
     self._discount = np.float32(discount)
-
+    self._discount_2 = np.float(discount_2)
     super().__init__(
         client=client,
         buffer_size=n_step,
@@ -293,7 +294,7 @@ class MoNStepTransitionAdder(base.ReverbAdder):
     total_discount = np.array([total_discount, total_discount])
 
     gamma_1 = self._discount
-    gamma_2 = 0.9
+    gamma_2 = self._discount_2
     discount = np.array([gamma_1, gamma_2])
     # NOTE: total discount will have one less discount than it does
     # step.discounts. This is so that when the learner/update uses an additional
@@ -304,15 +305,17 @@ class MoNStepTransitionAdder(base.ReverbAdder):
       n_step_return += step.reward * total_discount
       total_discount *= step.discount
 
-    if self._buffer[-1].reward[1] < 0: # or (next_observation[3] < 10 and next_observation[2] > 0):
+    if self._buffer[-1].reward[1] < 0: # or (next_observation[3] < 20 and next_observation[2] > 0):
         extras = np.array(gamma_2, dtype=np.float32)
         total_discount = np.array(total_discount[1])
+        #n_step_return = n_step_return[1]
     else:
         extras = np.array(gamma_1, dtype=np.float32)
         total_discount = np.array(total_discount[0])
+        #n_step_return = n_step_return[0]
 
+    n_step_return = np.sum(n_step_return, axis=0)
 
-    n_step_return = np.array(np.sum(n_step_return, axis=0))
 
     if extras:
       transition = (observation, action, n_step_return, total_discount,

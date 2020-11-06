@@ -104,6 +104,9 @@ class GymWrapperSplit(dm_env.Environment):
     self._observation_spec = _convert_to_spec(obs_space, name='observation')
     self._action_spec = _convert_to_spec(act_space, name='action')
 
+  def set_id(self, id):
+    self._environment.set_id(id)
+
   def reset(self) -> dm_env.TimeStep:
     """Resets the episode."""
     self._reset_next_step = False

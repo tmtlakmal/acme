@@ -26,16 +26,18 @@ from acme.tf import networks
 from acme.utils import paths
 from external_env.vehicle_controller.vehicle_env import Vehicle_env
 from external_env.vehicle_controller.vehicle_env_mp import Vehicle_env_mp
+from external_env.vehicle_controller.split_env import Vehicle_env_mp_split
 from acme.agents import  agent
 
 import dm_env
 import tensorflow as tf
 
+tf.random.set_seed(1234)
 
-def make_environment(multi_objective=True) -> dm_env.Environment:
+def make_environment(multi_objective=True, additional_discount=1) -> dm_env.Environment:
 
-  environment =  Vehicle_env_mp(1,3, front_vehicle=True, multi_objective=multi_objective)
-  step_data_file = "episode_data.csv" if multi_objective else "episode_data_single.csv"
+  environment =  Vehicle_env_mp(2, 3, front_vehicle=True, multi_objective=multi_objective)
+  step_data_file = "episode_data_"+str(additional_discount)+".csv" if multi_objective else "episode_data_single.csv"
   environment = wrappers.Monitor_save_step_data(environment, step_data_file=step_data_file)
   # Make sure the environment obeys the dm_env.Environment interface.
   environment = wrappers.GymWrapper(environment)
@@ -60,9 +62,10 @@ FLAGS = flags.FLAGS
 def main(_):
 
   # Parameters to save and restore
+  discount_2 = 0.9
   use_pre_trained = False
   multi_objective = True
-  env = make_environment(multi_objective)
+  env = make_environment(multi_objective, discount_2*10)
   environment_spec = specs.make_environment_spec(env)
   network = networks.DuellingMLP(3,  (128, 128))
   tensorboard_writer = createTensorboardWriter("./train/", "DQN")
@@ -75,7 +78,7 @@ def main(_):
   if multi_objective:
       agent = MOdqn.MODQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3,
                   batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
-                  checkpoint=True, checkpoint_subpath='./checkpoints/', target_update_period=200)
+                  checkpoint=True, checkpoint_subpath='./checkpoints/', target_update_period=200, discount_2=discount_2)
   else:
       agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3,
                           batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
@@ -86,9 +89,20 @@ def main(_):
 
   loop = acme.EnvironmentLoop(env, agent, tensorboard_writer=tensorboard_writer)
   loop.run(num_steps=FLAGS.num_steps)
-  #agent.save_checkpoints(force=True)
 
-  test_trained_agent(agent, env, 4000)
+  #for i in range(FLAGS.num_steps):
+  #    loop.run_step()
+  #    loop.fetch_data()
+  agent.save_checkpoints(force=True)
+
+  test_trained_agent(agent, env, 1000)
+  print("Pre-trained ##### ")
+  epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=1.0, eps_start=0, eps_end=0)
+  agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3,
+                  batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
+                  checkpoint=True, checkpoint_subpath='./checkpoints/', target_update_period=200)
+  agent.restore()
+  test_trained_agent(agent, env, 1000)
   env.close()
 
 def test_trained_agent(agent : agent.Agent,

@@ -31,7 +31,7 @@ from acme.core import VariableSource
 from acme.core import Worker
 
 # Expose the environment loop.
-from acme.environment_loop import EnvironmentLoop
+from acme.environment_loop import EnvironmentLoop, EnvironmentLoopSplit
 # Internal environment_loop import.
 
 from acme.specs import make_environment_spec
