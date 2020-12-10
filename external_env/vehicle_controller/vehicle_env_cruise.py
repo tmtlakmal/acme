@@ -7,7 +7,7 @@ from external_env.vehicle_controller.vehicle_obj import  Vehicle
 from external_env.vehicle_controller.base_controller import *
 from external_interface.zeromq_client import ZeroMqClient
 
-class Vehicle_env_mp(gym.Env):
+class VehicleEnvCruise(gym.Env):
     """Custom Environment that follows gym interface"""
     metadata = {'render.modes': ['human']}
 
@@ -18,7 +18,7 @@ class Vehicle_env_mp(gym.Env):
 
     def __init__(self, id, num_actions, max_speed=22.0, time_to_reach=45.0, distance=500.0,
                  front_vehicle=False, multi_objective=True):
-        super(Vehicle_env_mp, self).__init__()
+        super(VehicleEnvCruise, self).__init__()
         # Define action and observation space
         # They must be gym.spaces objects
         # Example when using discrete actions:
@@ -32,8 +32,8 @@ class Vehicle_env_mp(gym.Env):
             self.observation_space = spaces.Box(low=np.array([0.0,0.0,0.0]),
                                                 high=np.array([max_speed, time_to_reach, distance]), dtype=np.float32)
         else:
-            self.observation_space = spaces.Box(low=np.array([0.0, 0.0, 0.0, 0.0, 0.0, -1.0]),
-                                                high=np.array([max_speed, time_to_reach, distance, distance, max_speed, 1.0]), dtype=np.float32)
+            self.observation_space = spaces.Box(low=np.array([0.0, 0.0, 0.0, 0.0, -1.0]),
+                                                high=np.array([max_speed, distance, distance, max_speed, 1.0]), dtype=np.float32)
 
         self.is_episodic = True
         self.is_simulator_used = True
@@ -44,9 +44,10 @@ class Vehicle_env_mp(gym.Env):
         self.correctly_ended = []
         self.default_headway = 2
         self.previous_headway  = 0
+        self.previous_distance = 0
         self.previous_location = 0
         self.last_speed = 0
-        self.distance = 0
+
         self.multi_objective = multi_objective
 
 
@@ -54,7 +55,6 @@ class Vehicle_env_mp(gym.Env):
         self.vehicle = Vehicle()
         self.vehicle_front = Vehicle()
         self.vehicle_controller = HumanDriven(self.step_size, self.vehicle_front.max_acc, self.vehicle_front.max_acc)
-        self.front_vehicle_end_time = 0
 
     def set_id(self, id):
         self.id = id
@@ -69,17 +69,11 @@ class Vehicle_env_mp(gym.Env):
         else:
             paddleCommand = 1
 
-        #print("Action", paddleCommand)
         message_send = {'edges': [], 'vehicles':[{"index":self.id, "paddleCommand": paddleCommand}]}
-
         if self.is_simulator_used:
             message = self.sim_client.send_message(message_send)
         else:
             message = 0
-
-        if self.is_front_vehicle:
-            acc = self.vehicle_controller.compute_acceleration(self.vehicle_front)
-            self.vehicle_front.step(self.map_to_paddle_command(acc))
 
         observation, reward, done, info = self.decode_message(message, paddleCommand)
 
@@ -89,11 +83,9 @@ class Vehicle_env_mp(gym.Env):
         #self.sim_client.send_message({"Reset": []})
         if self.is_simulator_used:
             message_send = {'edges': [], 'vehicles': [{"index": self.id, "paddleCommand": 0}]}
-            self.distance = 380
-            self.front_vehicle_end_time = 0
             message = self.sim_client.send_message(message_send)
             observation, _, _, _ = self.decode_message(message, 0)
-            #self.time_to_reach = np.random.randint(8,16)
+            self.previous_distance = 380
             return observation # reward, done, info can't be included
         else:
             if self.is_front_vehicle:
@@ -107,7 +99,9 @@ class Vehicle_env_mp(gym.Env):
                 time_to_reach = int(l[1])-1
                 self.vehicle_front.assign_data()
                 l.extend([self.vehicle.location - self.vehicle_front.location,
-                            self.vehicle_front.speed])
+                            self.vehicle_front.speed,
+                            self.vehicle_front.speed - self.last_speed])
+                self.last_speed = self.vehicle_front.speed
 
                 return np.array(l, dtype=np.float32)
             else:
@@ -122,47 +116,39 @@ class Vehicle_env_mp(gym.Env):
       pass
 
     def decode_message(self, message, action):
-
-        # init variables
+        # Init all step data
         speed = 0
         time = 0
         distance = 0
-        obs = [speed,time,distance]
-        if self.is_front_vehicle:
-            obs = [speed,time,distance,0,0,0]
-
         done = False
-        reward = [0.0, 0.0, 0.0]
+        reward = [0.0, 0.0]
         info = {'is_success':False}
 
+        # sample observation
+        obs = []
+        if self.is_front_vehicle:
+            obs = [0,0,0,0,0]
+
         if self.is_simulator_used:
+            #print(message["vehicles"])
             for vehicle in message["vehicles"]:
                 if vehicle["vid"] == self.id:
-                    speed   = vehicle["speed"]
-                    time    = vehicle["timeRemain"]
+                    speed   =vehicle["speed"]
+                    time    = int(vehicle["timeRemain"])
                     distance = vehicle["headPositionFromEnd"]
                     done = vehicle["done"]
-                    obs = [speed, time, distance]
+                    obs = [speed, distance]
 
-                    if done:
-                        self.episode_num += 1
-                        if vehicle["is_success"]:
-                            reward[1] = 10.0+3*speed
-                            info["is_success"] = True
-                        else:
-                            reward[1] = -10.0
-                    else:
-                        reward[0] = -distance/400 #self.distance - distance
-                        self.distance = distance
-
-                    if vehicle["isVirtual"]:
-                        self.front_vehicle_end_time += 0.2
+                    info['is_success'] = vehicle['is_success']
 
                     if self.is_front_vehicle:
+
+                        # compute front vehicle attributes
                         gap = vehicle['gap']
                         front_vehicle_speed = vehicle['frontVehicleSpeed']
-                        acc = front_vehicle_speed - self.last_speed
 
+
+                        acc = front_vehicle_speed - self.last_speed
                         if acc > 0:
                             acc = 1.0
                         elif acc < 0:
@@ -170,31 +156,47 @@ class Vehicle_env_mp(gym.Env):
                         else:
                             acc = 0.0
 
-                        headway = gap / max(0.1, speed)
+                        headway = gap/max(0.1, speed)
                         obs.extend([gap, front_vehicle_speed, acc])
 
-                        if done:
-                            if gap < 20 and reward[1] == -10.0 and obs[1] < 2:
-                                info["is_success"] = True
-                                reward[1] = 10.0 + 3*speed
-
-                            if distance < 20 and self.front_vehicle_end_time < 2 and obs[1] < 2:
-                                info["is_success"] = True
-                                reward[1] = 10.0 + 3*speed
+                        reward[0] = - (distance/400) # max(self.previous_distance - distance, 0)
+                        self.previous_distance = distance
 
                         if (gap > 6 and gap < 20):
-                            reward[2] = 0.1
+                            reward[1] = 0.1
 
                         if (gap < 10):
-                            reward[2] = (gap - 6)/6
+                            reward[1] = (gap - 6)/6
 
                         if (vehicle['crashed']):
-                            reward[2] = -400
-                            reward[1] = 0
+                            reward[1] = -400
                             done = True
 
-                        self.last_speed = front_vehicle_speed
+                        if done and distance < 4:
+                            #reward[0] = 100
+                            info['is_success'] = True
 
+                            # Reward computations
+
+                        #corrected_headway = headway - self.default_headway
+                        #if (abs(corrected_headway) < 0.1):
+                        #    reward = 10
+                        #elif (abs(corrected_headway) < 0.25):
+                        #    reward = 5
+                        #elif (-1.5 < corrected_headway and corrected_headway < -0.25):
+                        #    reward = -1
+                        #elif (corrected_headway < -1.5):
+                        #    reward = -100
+                        #elif(corrected_headway > 0.5 and corrected_headway < 4):
+                        #    reward = 1
+                        #elif(corrected_headway > 1):
+                        #    if (self.previous_headway > headway):
+                        #        reward = 1
+                        #    else:
+                        #        reward = -10
+
+                        self.previous_headway = headway
+                        self.last_speed = front_vehicle_speed
 
         else:
             obs, reward, done, info = self.vehicle.step(action)
@@ -226,7 +228,7 @@ class Vehicle_env_mp(gym.Env):
         if self.multi_objective:
             reward = np.array(reward, dtype=np.float32)
         else:
-            reward = sum(reward) # if reward_1 == 0.0 else reward_1
+            reward = sum(reward)# if reward_1 == 0.0 else reward_1
 
         return np.array(obs, dtype=np.float32), reward, done, info
 

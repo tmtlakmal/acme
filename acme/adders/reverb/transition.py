@@ -244,8 +244,7 @@ class MoNStepTransitionAdder(base.ReverbAdder):
       self,
       client: reverb.Client,
       n_step: int,
-      discount: float,
-      discount_2: float,
+      discounts: [float],
       priority_fns: Optional[base.PriorityFnMapping] = None,
   ):
     """Creates an N-step transition adder.
@@ -265,8 +264,8 @@ class MoNStepTransitionAdder(base.ReverbAdder):
     """
     # Makes the additional discount a float32, which means that it will be
     # upcast if rewards/discounts are float64 and left alone otherwise.
-    self._discount = np.float32(discount)
-    self._discount_2 = np.float(discount_2)
+    #self._discount = np.float32(discount)
+    self._discounts = np.array(discounts)
     super().__init__(
         client=client,
         buffer_size=n_step,
@@ -291,28 +290,39 @@ class MoNStepTransitionAdder(base.ReverbAdder):
     # it won't change the actual reward or discount.
     n_step_return = copy.deepcopy(self._buffer[0].reward)
     total_discount = copy.deepcopy(self._buffer[0].discount)
-    total_discount = np.array([total_discount, total_discount])
 
-    gamma_1 = self._discount
-    gamma_2 = self._discount_2
-    discount = np.array([gamma_1, gamma_2])
+
+    total_discount = np.full(self._discounts.shape, total_discount)
+
     # NOTE: total discount will have one less discount than it does
     # step.discounts. This is so that when the learner/update uses an additional
     # discount we don't apply it twice. Inside the following loop we will
     # apply this right before summing up the n_step_return.
     for step in itertools.islice(self._buffer, 1, None):
-      total_discount *= discount
+      total_discount *= self._discounts
       n_step_return += step.reward * total_discount
       total_discount *= step.discount
 
-    if self._buffer[-1].reward[1] < 0: # or (next_observation[3] < 20 and next_observation[2] > 0):
-        extras = np.array(gamma_2, dtype=np.float32)
-        total_discount = np.array(total_discount[1])
+    if (next_observation[3] < 20):
+        extras = np.array(self._discounts[2], dtype=np.float32)
+        total_discount = np.array(total_discount[2])
         #n_step_return = n_step_return[1]
     else:
-        extras = np.array(gamma_1, dtype=np.float32)
+        extras = np.array(self._discounts[0], dtype=np.float32)
         total_discount = np.array(total_discount[0])
         #n_step_return = n_step_return[0]
+
+    #if (self._buffer[-1].reward[2] < 0):
+    #    extras = np.array(self._discounts[2], dtype=np.float32)
+    #    total_discount = np.array(total_discount[2])
+    #if (next_observation[3] < 10):
+    #    extras = np.array(self._discounts[1], dtype=np.float32)
+    #    total_discount = np.array(total_discount[1])
+    #    #n_step_return = n_step_return[1]
+    #else:
+    #    extras = np.array(self._discounts[0], dtype=np.float32)
+    #    total_discount = np.array(total_discount[0])
+    #    #n_step_return = n_step_return[0]
 
     n_step_return = np.sum(n_step_return, axis=0)
 

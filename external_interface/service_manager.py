@@ -36,6 +36,36 @@ class Manager():
             self.env.step()
             result = self.env.get_result()
 
+    def mixed_run(self, timesteps):
+        self.env_handler.create_loop(1, trained=True)
+        self.env_handler.create_loop(2, trained=False)
+
+        self.env_handler.env_loops[0].load()
+        #self.env_handler.env_loops[1].load()
+
+        self.first_step()
+        self.env.step()
+        result = self.env.get_result()
+
+        for i in range(timesteps):
+            for vehicle in result['vehicles']:
+                if vehicle['externalControl']:
+                    if vehicle['vid'] == 1:
+                        self.env_handler.env_loops[0].online_step()
+                    if vehicle['vid'] == 2:
+                        self.env_handler.env_loops[1].run_step()
+
+            self.env.step()
+
+            for vehicle in result['vehicles']:
+                if vehicle['externalControl']:
+                    if vehicle['vid'] == 2:
+                        self.env_handler.env_loops[1].fetch_data()
+
+            result = self.env.get_result()
+
+
+
     def close(self):
         self.env_handler.close()
 
@@ -44,5 +74,5 @@ if __name__ == '__main__':
     manager = Manager()
     #manager.run(30000)
 
-    manager.online_run(4000)
+    manager.mixed_run(400000)
     manager.close()

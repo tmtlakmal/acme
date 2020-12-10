@@ -87,6 +87,7 @@ class Random(BaseVehicleController):
         return self.last_action
 
 
+
 def map_to_paddle_command(action):
     if action == 0:
         paddleCommand = -1

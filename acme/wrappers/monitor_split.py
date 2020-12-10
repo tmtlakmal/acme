@@ -71,6 +71,7 @@ class Monitor_save_step_data_split(gym.Wrapper):
         self.episode_remain_time = []
         self.episode_distance = []
         self.episode_gap = []
+        self.episode_speed_front = []
         self.episode_success = []
         self.mask = []
 
@@ -79,6 +80,7 @@ class Monitor_save_step_data_split(gym.Wrapper):
         self.times = []
         self.distance = []
         self.gap = []
+        self.speed_front = []
 
         self.iter = 0
 
@@ -103,7 +105,7 @@ class Monitor_save_step_data_split(gym.Wrapper):
 
     def move_step_to_episode(self, outcome, fill_value):
         if outcome:
-            fill_value = 3
+            fill_value = 99
         else:
             fill_value = -1
 
@@ -117,12 +119,14 @@ class Monitor_save_step_data_split(gym.Wrapper):
         self.distance.clear()
         self.episode_gap.append(self.fill_array(self.gap, fill_value).copy())
         self.gap.clear()
+        self.episode_speed_front.append(self.fill_array(self.speed_front, fill_value).copy())
+        self.speed_front.clear()
 
-        self.mask.append([False if i < len(self.actions) else True for i in range(47)])
+        self.mask.append([False if i < len(self.actions) else True for i in range(201)])
 
         self.action = 0
     def fill_array(self, array, fill_value):
-        fill = [fill_value for i in range(47 - len(array))]
+        fill = [fill_value for i in range(200 - len(array))]
         concat = array + fill
         return concat
 
@@ -152,6 +156,8 @@ class Monitor_save_step_data_split(gym.Wrapper):
         self.distance.append(observation[2])
         if len(observation) > 3:
             self.gap.append(observation[3])
+        if len(observation) > 4:
+            self.speed_front.append(observation[4])
 
         # if True:
         #    self.needs_reset = False
@@ -189,16 +195,17 @@ class Monitor_save_step_data_split(gym.Wrapper):
 
     def prepare_dataFrame(self):
         new_list = []
-        for index, (action, speed, time, distance, mask, gap) in enumerate(zip(self.episode_actions,
+        for index, (action, speed, time, distance, mask, gap, speed_front) in enumerate(zip(self.episode_actions,
                                         self.episode_speed,
                                         self.episode_remain_time,
                                         self.episode_distance,
                                         self.mask,
-                                        self.episode_gap)):
-            for step, (a,s,t,d,m,g) in enumerate(zip(action, speed, time, distance, mask, gap)):
-                new_list.append([step, index, a, s, t, d, self.episode_success[index], m, int(g)])
+                                        self.episode_gap,
+                                        self.episode_speed_front)):
+            for step, (a,s,t,d,m,g,sf) in enumerate(zip(action, speed, time, distance, mask, gap, speed_front)):
+                new_list.append([step, index, a, s, t, d, self.episode_success[index], m, int(g), int(sf)])
 
-        df = pd.DataFrame(new_list, columns=['step', 'episode number', 'action', 'speed', 'time', 'distance', 'success', 'm', 'gap'], index=None)
+        df = pd.DataFrame(new_list, columns=['step', 'episode number', 'action', 'speed', 'time', 'distance', 'success', 'm', 'gap', 'sf'], index=None)
         df.to_csv(self.file_name)
 
 

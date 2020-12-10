@@ -105,7 +105,7 @@ class Monitor_save_step_data(gym.Wrapper):
 
     def move_step_to_episode(self, outcome, fill_value):
         if outcome:
-            fill_value = 3
+            fill_value = 99
         else:
             fill_value = -1
 
@@ -122,10 +122,10 @@ class Monitor_save_step_data(gym.Wrapper):
         self.episode_speed_front.append(self.fill_array(self.speed_front, fill_value).copy())
         self.speed_front.clear()
 
-        self.mask.append([False if i < len(self.actions) else True for i in range(47)])
+        self.mask.append([False if i < len(self.actions) else True for i in range(201)])
 
     def fill_array(self, array, fill_value):
-        fill = [fill_value for i in range(47 - len(array))]
+        fill = [fill_value for i in range(200 - len(array))]
         concat = array + fill
         return concat
 
@@ -151,6 +151,7 @@ class Monitor_save_step_data(gym.Wrapper):
         self.distance.append(observation[2])
         if len(observation) > 3:
             self.gap.append(observation[3])
+        if len(observation) > 4:
             self.speed_front.append(observation[4])
 
         # if True:

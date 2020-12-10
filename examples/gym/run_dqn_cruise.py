@@ -25,7 +25,7 @@ from acme import wrappers
 from acme.tf import networks
 from acme.utils import paths
 from external_env.vehicle_controller.vehicle_env import Vehicle_env
-from external_env.vehicle_controller.vehicle_env_mp import Vehicle_env_mp
+from external_env.vehicle_controller.vehicle_env_cruise import VehicleEnvCruise
 from external_env.vehicle_controller.split_env import Vehicle_env_mp_split
 from acme.agents import  agent
 
@@ -36,8 +36,8 @@ tf.random.set_seed(1234)
 
 def make_environment(multi_objective=True, additional_discount='') -> dm_env.Environment:
 
-  environment =  Vehicle_env_mp(2, 3, front_vehicle=True, multi_objective=multi_objective)
-  step_data_file = "episode_data_"+additional_discount+".csv" if multi_objective else "episode_data_single.csv"
+  environment =  VehicleEnvCruise(2, 3, front_vehicle=True, multi_objective=multi_objective)
+  step_data_file = "episode_data_cruise_"+additional_discount+".csv" if multi_objective else "episode_data_cruise.csv"
   environment = wrappers.Monitor_save_step_data(environment, step_data_file=step_data_file)
   # Make sure the environment obeys the dm_env.Environment interface.
   environment = wrappers.GymWrapper(environment)
@@ -49,7 +49,6 @@ def createTensorboardWriter(tensorboard_log_dir, suffix):
     id = paths.find_next_path_id(tensorboard_log_dir, suffix) + 1
     train_log_dir = tensorboard_log_dir + suffix + "_"+ str(id)
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-    print("Tensorboard logs at ", train_log_dir)
     return train_summary_writer
 
 def createNextFileName(tensorboard_log_dir, suffix):
@@ -69,12 +68,12 @@ def array_to_string(array):
 def main(_):
 
   # Parameters to save and restore
-  discounts = [1, 1, 0.9]
+  discounts = [1, 0.95]
   use_pre_trained = False
   multi_objective = True
   env = make_environment(multi_objective, array_to_string(discounts))
   environment_spec = specs.make_environment_spec(env)
-  network = networks.DuellingMLP(3,  (256, 256))
+  network = networks.DQN(3,  (128, 128))
   tensorboard_writer = createTensorboardWriter("./train/", "DQN")
 
   if use_pre_trained:
@@ -102,12 +101,12 @@ def main(_):
   #    loop.fetch_data()
   agent.save_checkpoints(force=True)
 
-  test_trained_agent(agent, env, 1250)
+  test_trained_agent(agent, env, 1000)
   print("Pre-trained ##### ")
   epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=1.0, eps_start=0, eps_end=0)
   agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3,
                   batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
-                  checkpoint=True, checkpoint_subpath='./checkpoints_new_1/', target_update_period=200)
+                  checkpoint=True, checkpoint_subpath='./checkpoints_1/', target_update_period=200)
   agent.restore()
   test_trained_agent(agent, env, 1000)
   env.close()

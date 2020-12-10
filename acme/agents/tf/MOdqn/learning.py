@@ -45,7 +45,7 @@ class MoDQNLearner(acme.Learner, tf2_savers.TFSaveable):
       self,
       network: snt.Module,
       target_network: snt.Module,
-      discount: float,
+      discount: float or [float],
       importance_sampling_exponent: float,
       learning_rate: float,
       target_update_period: int,

@@ -110,6 +110,10 @@ class EnvironmentLoop(core.Worker):
         with tf.name_scope('environment loop'):
           if isinstance(episode_return, np.ndarray):
             tf.summary.scalar('episode_reward', sum(episode_return), step=current_step)
+            tf.summary.scalar('episode_reward_0', episode_return[0], step=current_step)
+            tf.summary.scalar('episode_reward_1', episode_return[1], step=current_step)
+            if len(episode_return) > 2:
+              tf.summary.scalar('episode_reward_2', episode_return[2], step=current_step)
           else:
             tf.summary.scalar('episode_reward', episode_return, step=current_step)
 
@@ -201,6 +205,7 @@ class EnvironmentLoopSplit(core.Worker):
     self.action = 0
     self.timestep = None
     self.id = id
+    self.episode_number = 0
 
     self.returns_per_vehicle = dict()
 
@@ -251,6 +256,9 @@ class EnvironmentLoopSplit(core.Worker):
         with tf.name_scope('environment loop'):
           if isinstance(episode_return, np.ndarray):
             tf.summary.scalar('episode_reward', sum(episode_return), step=current_step)
+            tf.summary.scalar('episode_reward_0', episode_return[0], step=current_step)
+            tf.summary.scalar('episode_reward_1', episode_return[1], step=current_step)
+            tf.summary.scalar('episode_reward_2', episode_return[2], step=current_step)
           else:
             tf.summary.scalar('episode_reward', episode_return, step=current_step)
 
@@ -357,19 +365,24 @@ class EnvironmentLoopSplit(core.Worker):
 
   def online_step(self):
 
+    self.timestep = self._environment.get_step()
+
     if not self.id in self.returns_per_vehicle:
+      #print("time: ", self.timestep.observation[1])
       self.returns_per_vehicle[self.id] = 0
 
-    self.timestep = self._environment.get_step()
+    #if self.id % 1 == 0:
+    #  print("Init states:",self.id, self.timestep.observation)
     action = self._actor.select_action(self.timestep.observation)
 
     if not self.timestep.reward is None:
       self.returns_per_vehicle[self.id] += self.timestep.reward
 
     if self.timestep.last():
-      print("Episode reward: ", self.id, self.returns_per_vehicle[self.id])
+      print("Episode reward: ", self.id, self.episode_number, self.returns_per_vehicle[self.id])
       del self.returns_per_vehicle[self.id]
       self.episode_return = 0
+      self.episode_number += 1
     self._environment.step(action)
 
   def load(self):
@@ -377,6 +390,6 @@ class EnvironmentLoopSplit(core.Worker):
 
   def close(self):
     self._environment.close()
-    #self._actor.save_checkpoints(force=True)
+    self._actor.save_checkpoints(force=True)
 
 # Internal class.

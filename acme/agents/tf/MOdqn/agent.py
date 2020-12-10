@@ -54,13 +54,13 @@ class MODQN(agent.Agent):
       target_update_period: int = 100,
       samples_per_insert: float = 32.0,
       min_replay_size: int = 1000,
-      max_replay_size: int = 100000,
+      max_replay_size: int = 500000,
       importance_sampling_exponent: float = 0.2,
       priority_exponent: float = 0.6,
       n_step: int = 5,
       epsilon: Optional[Union[Schedule, tf.Tensor]] = None,
       learning_rate: float = 1e-3,
-      discount: float = 0.99,
+      discount: float or [float] = 0.99,
       discount_2 : float = 0.99,
       logger: loggers.Logger = None,
       checkpoint: bool = True,
@@ -115,8 +115,7 @@ class MODQN(agent.Agent):
     adder = adders.MoNStepTransitionAdder(
         client=reverb.Client(address),
         n_step=n_step,
-        discount=discount,
-        discount_2=discount_2)
+        discounts=discount)
 
     # The dataset provides an interface to sample from replay.
     replay_client = reverb.TFClient(address)
@@ -165,7 +164,7 @@ class MODQN(agent.Agent):
           directory=checkpoint_subpath,
           objects_to_save=learner.state,
           subdirectory='dqn_learner',
-          time_delta_minutes=60.,
+          time_delta_minutes=30.,
           add_uid=False)
     else:
       self._checkpointer = None

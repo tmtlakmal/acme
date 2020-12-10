@@ -32,7 +32,7 @@ class DQN(snt.Module):
   ):
     super().__init__(name='q_network')
 
-    self._advantage_mlp = snt.nets.MLP([*hidden_sizes, num_actions])
+    self.q_network = snt.nets.MLP([*hidden_sizes, num_actions])
 
   def __call__(self, inputs: tf.Tensor) -> tf.Tensor:
     """Forward pass of the duelling network.
@@ -45,14 +45,90 @@ class DQN(snt.Module):
     """
 
     # Compute value
-    advantages = self._advantage_mlp(inputs)  # [B, A]
-
-    # Advantages have zero mean.
-    #advantages -= tf.reduce_mean(advantages, axis=-1, keepdims=True)  # [B, A]
+    advantages = self.q_network(inputs)  # [B, A]
 
     q_values = advantages  # [B, A]
 
     return q_values
 
-  def initial_state(self, batch_size: int, **kwargs):
-    return tf.zeros(shape=[batch_size], dtype=tf.float64)
+
+class DQNSplit(snt.Module):
+  """A Duelling MLP Q-network."""
+
+  def __init__(
+      self,
+      num_actions: int,
+      hidden_sizes: Sequence[int],
+      split: int = 3
+  ):
+    super().__init__(name='q_network_split')
+
+    self.q_network1 = snt.nets.MLP([*hidden_sizes, num_actions])
+    self.q_network2 = snt.nets.MLP([*hidden_sizes, num_actions])
+
+    #self.attention = tf.Variable([1,1,1], trainable=False)
+    self.split = split
+
+  def __call__(self, inputs: tf.Tensor) -> tf.Tensor:
+    """Forward pass of the duelling network.
+
+    Args:
+      inputs: 2-D tensor of shape [batch_size, embedding_size].
+
+    Returns:
+      q_values: 2-D tensor of action values of shape [batch_size, num_actions]
+    """
+
+    # Split input into two parts
+    input_1, input_2 = tf.split(inputs, [self.split,inputs.shape[1] - self.split],1)
+    q_out_1 = self.q_network1(input_1)  # [B, A]
+    q_out_2 = self.q_network2(input_2)  # [B, A]
+
+    q_values = q_out_1 + q_out_2
+
+    return q_values
+
+class DQNAttention(snt.Module):
+    """A Duelling MLP Q-network."""
+
+    def __init__(
+            self,
+            num_actions: int,
+            hidden_sizes: Sequence[int],
+            split: int = 1
+    ):
+      super().__init__(name='q_network_split')
+
+      self.q_network1 = snt.nets.MLP([*hidden_sizes, num_actions])
+      self.q_network2 = snt.nets.MLP([*hidden_sizes, num_actions])
+
+      self.attention1 = tf.Variable([1,1,1], trainable=False)
+      self.attention2 = tf.Variable([0,0,0], trainable=False)
+      self.split = split
+      self.threshold = 15
+
+    def __call__(self, inputs: tf.Tensor) -> tf.Tensor:
+      """Forward pass of the duelling network.
+
+      Args:
+        inputs: 2-D tensor of shape [batch_size, embedding_size].
+
+      Returns:
+        q_values: 2-D tensor of action values of shape [batch_size, num_actions]
+      """
+
+      # Split input into two parts
+      input_1, input_2 = tf.split(inputs, [self.split, inputs.shape[1] - self.split], 1)
+
+      q_out_1 = self.q_network1(input_1)  # [B, A]
+      q_out_2 = self.q_network2(input_2)  # [B, A]
+
+      sliced = tf.slice(inputs, [0, 1], inputs.shape[1]-1, 1)
+      condtion = tf.less(sliced, self.threshold)
+
+      weights1 = tf.where(condtion, self.attention2, self.attention1)
+      weights2 = tf.where(condtion, self.attention1, self.attention2)
+
+      q_values = weights1 * q_out_1 + weights2 * q_out_2
+
+      return q_values
