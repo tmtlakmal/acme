@@ -1,46 +1,21 @@
-<img src="docs/logos/acme.png" width="50%">
-
 # Acme: a research framework for reinforcement learning
-
-**[Overview](#overview)** | **[Installation](#installation)** |
-**[Documentation]** | **[Agents]** | **[Examples]** | **[Paper]** |
-**[Blog post]**
-
-![PyPI Python Version](https://img.shields.io/pypi/pyversions/dm-acme)
-![PyPI version](https://badge.fury.io/py/dm-acme.svg)
-![pytest](https://github.com/deepmind/acme/workflows/pytest/badge.svg)
-
-Acme is a library of reinforcement learning (RL) agents and agent building
-blocks. Acme strives to expose simple, efficient, and readable agents, that
-serve both as reference implementations of popular algorithms and as strong
-baselines, while still providing enough flexibility to do novel research. The
-design of Acme also attempts to provide multiple points of entry to the RL
-problem at differing levels of complexity.
-
-<div align="center" style="display: grid; grid-template-columns: auto auto;">
-  <div>
-    <video width="25%" autoplay loop muted>
-      <source src="https://storage.googleapis.com/dm-acme/videos/d4pg_humanoid_run_features_short.webm" type="video/webm">
-    </video>
-    <video width="25%" autoplay loop muted>
-      <source src="https://storage.googleapis.com/dm-acme/videos/d4pg_acrobot_swingup_features_short.webm" type="video/webm">
-    </video>
-  </div>
-  <div>
-    <video width="25%" autoplay loop muted>
-      <source src="https://storage.googleapis.com/dm-acme/videos/r2d2_breakout.webm" type="video/webm">
-    </video>
-    <video width="25%" autoplay loop muted>
-      <source src="https://storage.googleapis.com/dm-acme/videos/r2d2_ms_pacman.webm" type="video/webm">
-    </video>
-  </div>
-</div>
 
 ## Overview
 
-If you just want to get started using Acme quickly, the main thing to know about
-the library is that we expose a number of agent implementations and an
-`EnvironmentLoop` primitive that can be used as follows:
+This codebase is built from a fork from deepmind/acme frame work. https://github.com/deepmind/acme
+
+Following are the key files we develop for Multi-discount Q-learning. Please refer to following files for code for Multi-discount Q-learning
+
+1. examples/gym/run_dqn.py : Main file for the execution 
+2. external_env/vehicle_controller/vehicle_env_mp.py : Environment for Trajecotry + Cruis Control
+3. acme/agents/tf/MOdqn/agent.py : Multi-discount Q-learning Agent (Actor + learner)
+4. acme/agents/tf/MOdqn/learning.py : Multi-discount Q-learning learner
+5. acme/adders/reverb/transition.py [MoNStepTransitionAdder] : Creates sample for experience replay by multipling reward vector and discount vector and the reward dependent discount function. 
+
+
+
+
+
 
 ```python
 loop = acme.EnvironmentLoop(environment, agent)
