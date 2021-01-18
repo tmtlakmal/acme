@@ -7,7 +7,7 @@ from external_env.vehicle_controller.vehicle_obj import  Vehicle
 from external_env.vehicle_controller.base_controller import *
 from external_interface.smarts_env import SMARTS_env
 
-class Vehicle_env_mp_split(gym.Env):
+class Vehicle_gurobi_env_mp_split(gym.Env):
     """Custom Environment that follows gym interface"""
     metadata = {'render.modes': ['human']}
 
@@ -18,7 +18,7 @@ class Vehicle_env_mp_split(gym.Env):
 
     def __init__(self, id, num_actions, max_speed=22.0, time_to_reach=45.0, distance=500.0,
                  front_vehicle=False, multi_objective=True, env : SMARTS_env = None):
-        super(Vehicle_env_mp_split, self).__init__()
+        super(Vehicle_gurobi_env_mp_split, self).__init__()
         # Define action and observation space
         # They must be gym.spaces objects
         # Example when using discrete actions:
@@ -32,8 +32,8 @@ class Vehicle_env_mp_split(gym.Env):
             self.observation_space = spaces.Box(low=np.array([0.0,0.0,0.0]),
                                                 high=np.array([max_speed, time_to_reach, distance]), dtype=np.float32)
         else:
-            self.observation_space = spaces.Box(low=np.array([0.0, 0.0, 0.0, 0.0, 0.0, -1.0]),
-                                                high=np.array([max_speed, time_to_reach, distance, distance, max_speed, 1.0]), dtype=np.float32)
+            self.observation_space = spaces.Box(low=np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+                                                high=np.array([max_speed, time_to_reach, distance, distance, max_speed, time_to_reach]), dtype=np.float32)
 
         self.is_episodic = True
         self.is_simulator_used = True
@@ -162,19 +162,14 @@ class Vehicle_env_mp_split(gym.Env):
                         self.front_vehicle_end_time += 0.2
 
                     if self.is_front_vehicle:
-                        gap = vehicle['gap']
                         front_vehicle_speed = vehicle['frontVehicleSpeed']
-                        acc = front_vehicle_speed - self.last_speed
+                        front_vehicle_time = vehicle['frontVehicleTimeRemain']
+                        front_vehicle_distance = vehicle['frontVehicleDistance']
 
-                        if acc > 0:
-                            acc = 1.0
-                        elif acc < 0:
-                            acc = -1.0
-                        else:
-                            acc = 0.0
+                        gap = vehicle['gap']
 
                         headway = gap / max(0.1, speed)
-                        obs.extend([gap, front_vehicle_speed, acc])
+                        obs.extend([front_vehicle_speed, front_vehicle_time, front_vehicle_distance])
 
                         if done:
                             if gap < 20 and reward[1] == -10.0 and obs[1] < 2:
@@ -192,6 +187,7 @@ class Vehicle_env_mp_split(gym.Env):
                             reward[2] = (gap - 6)/6
 
                         if (vehicle['crashed']):
+                            print("############### Crashed #############")
                             reward[2] = -400
                             reward[1] = 0
                             done = True

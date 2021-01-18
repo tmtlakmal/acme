@@ -32,6 +32,9 @@ import tree
 
 tfd = tfp.distributions
 
+import gurobipy as gp
+from gurobipy import GRB
+import numpy as np
 
 class FeedForwardActor(core.Actor):
   """A feed-forward actor.
@@ -198,3 +201,125 @@ class RecurrentActor(core.Actor):
 
 # Internal class 1.
 # Internal class 2.
+
+class GurobiLpActor(core.Actor):
+
+  def __init__(self, step_size, max_velocity):
+
+    self.step_size = step_size
+
+    self.model = None
+    self.front_vehicle_model = None
+    self.positions = None
+    self.velocities = None
+    self.accelerations = None
+    self.max_velocity = max_velocity
+
+    self.front_vehicle_positions = None
+
+    # step managers
+    self.current_index = 0
+    self.last_remain_time = 0
+    self.front_vehicle_remain_time = 0
+
+  def compute_trajectory(self, observation, include_front_vehicle = False):
+
+    env  = gp.Env(empty=True)
+    env.setParam('OutputFlag', 0)
+    env.start()
+    model = gp.Model("mip1", env=env)
+    model.Params.BarConvTol = 0.05
+
+    N = int(observation[1] / self.step_size)
+
+    distance = np.float64(observation[2])
+
+    positions = model.addVars(1, N, lb=-distance, ub=10.0, vtype='C', name='p')
+    velocity = model.addVars(1, N, lb=0.0, ub=self.max_velocity, vtype='C', name='v')
+    accelerations = model.addVars(1, N, lb=-1, ub=1, vtype='I', name='a')
+
+
+    for i in range(N - 1):
+      model.addConstr(positions[0, i + 1] == positions[0, i] + velocity[0, i + 1] * self.step_size)
+      model.addConstr(velocity[0, i + 1] == velocity[0, i] + accelerations[0, i] * 2 * self.step_size)
+
+    model.addConstr(positions[0, 0] == -distance)
+    model.addConstr(positions[0, N - 1] >= -5)
+
+    model.addConstr(velocity[0, 0] == round(np.float64(observation[0]), 2))
+    # Constrain the end velocity between max velocity and max velocity - 4
+    #model.addConstr(velocity[0, N - 1] <= self.max_velocity)
+    #model.addConstr(velocity[0, N - 1] >= self.max_velocity - 4)
+
+    if include_front_vehicle and self.front_vehicle_positions != None:
+      for j in range(3, len(self.front_vehicle_positions)):
+        model.addConstr(positions[0, j] <= self.front_vehicle_positions[0, j].x - 5)
+
+    model.setObjective(positions.sum() / 400 + 3 * velocity[0, N - 1], GRB.MAXIMIZE)
+
+    model.optimize()
+    #print("Current length: ", N)
+    return model, positions, velocity, accelerations
+
+  def select_action(self, observation: types.NestedArray) -> types.NestedArray:
+
+    if (self.last_remain_time - observation[1] <= 0 or (observation.size > 4 and self.front_vehicle_remain_time - observation[4] < 0)):
+      # recompute
+      if observation[1] == 0:
+        return 0
+
+      self.last_remain_time = observation[1]
+
+      if observation.size > 4:
+        self.front_vehicle_remain_time = observation[4]
+      self.current_index = 0
+
+      if observation.size > 4 and not observation[5] == 0:
+        self.front_vehicle_model, self.front_vehicle_positions, _, _ =  self.compute_trajectory(observation[3:6], include_front_vehicle=False)
+        self.model, self.positions, self.velocities, self.accelerations = self.compute_trajectory(observation, include_front_vehicle=True)
+      else:
+        self.model, self.positions, self.velocities, self.accelerations = self.compute_trajectory(observation, include_front_vehicle=False)
+
+      #for j in range(len(self.front_vehicle_positions)):
+      #  print(j, self.positions[0, j].x, self.front_vehicle_positions[0, j].x, self.positions[0, j].x - self.front_vehicle_positions[0, j].x)
+      action = np.array(self.accelerations[0,0].x+1)
+
+      return action
+
+    else:
+      self.current_index += 1
+      self.last_remain_time = observation[1]
+      action = np.array(self.accelerations[0, self.current_index].x+1)
+      return action
+
+  def observe_first(self, timestep: dm_env.TimeStep):
+     pass
+
+  def observe(self, action: types.NestedArray, next_timestep: dm_env.TimeStep):
+    pass
+
+  def update(self):
+    pass
+
+  def to_array(self, data : gp.tupledict):
+    list_data = np.zeros(len(data), dtype=np.float)
+    for i in range(len(data)):
+      list_data[i] = data[0, i].x
+
+    return  list_data
+
+import time
+if __name__ == "__main__":
+  grl = GurobiLpActor(0.2, 22.0)
+  #step_data = np.array([  6.52528,    53.8,       378.66312,     6.3916183,  41.4,       362.58725  ], dtype=np.float32)
+  for i in range(20):
+    step_data = np.array([6.52528, 22+i, 378.66312, 6.3916183, 20+i, 362.58725], dtype=np.float32)
+    #step_data = np.array([  6.52528,    21+i,       378.66312], dtype=np.float32)
+    s = time.time()
+    grl.select_action(step_data)
+    print(time.time()-s)
+  print("Done")
+  input()
+
+
+

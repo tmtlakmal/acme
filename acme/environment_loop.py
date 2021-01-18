@@ -282,6 +282,7 @@ class EnvironmentLoopSplit(core.Worker):
       self._actor.observe_first(self.timestep)
 
     if not self.timestep.last():
+      print("Vehicle step data: ", self.id, self.timestep.observation)
       self.action = self._actor.select_action(self.timestep.observation)
       self._environment.step(self.action)
     else:

@@ -18,6 +18,8 @@
 import time
 from typing import Dict, List, Optional
 
+from acme.utils.schedulers import LinearSchedule
+
 import acme
 from acme.adders import reverb as adders
 from acme.tf import losses
@@ -82,7 +84,10 @@ class MoDQNLearner(acme.Learner, tf2_savers.TFSaveable):
     self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
     self._network = network
     self._target_network = target_network
-    self._optimizer = snt.optimizers.Adam(learning_rate)
+
+
+    learning_schedule = LinearSchedule(400000, eps_fraction=0.9, eps_start=learning_rate, eps_end=learning_rate)
+    self._optimizer = snt.optimizers.Adam(learning_rate, learning_rate_decay=None)
     self._replay_client = replay_client
 
     # Internalise the hyperparameters.

@@ -122,10 +122,10 @@ class Monitor_save_step_data(gym.Wrapper):
         self.episode_speed_front.append(self.fill_array(self.speed_front, fill_value).copy())
         self.speed_front.clear()
 
-        self.mask.append([False if i < len(self.actions) else True for i in range(201)])
+        self.mask.append([False if i < len(self.actions) else True for i in range(251)])
 
     def fill_array(self, array, fill_value):
-        fill = [fill_value for i in range(200 - len(array))]
+        fill = [fill_value for i in range(250 - len(array))]
         concat = array + fill
         return concat
 

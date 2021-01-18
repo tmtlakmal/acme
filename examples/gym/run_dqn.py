@@ -16,6 +16,7 @@
 """Run DQN on Atari."""
 from acme.agents.tf import dqn
 from acme.agents.tf import MOdqn
+from acme.agents.gurobi import lp
 from absl import app
 from absl import flags
 import acme
@@ -57,7 +58,7 @@ def createNextFileName(tensorboard_log_dir, suffix):
     return  tensorboard_log_dir + suffix + "_"+ str(id)
 
 flags.DEFINE_integer('num_episodes', 10000, 'Number of episodes to train for.')
-flags.DEFINE_integer('num_steps', 800000, 'Number of steps to train for.')
+flags.DEFINE_integer('num_steps', 360000, 'Number of steps to train for.')
 FLAGS = flags.FLAGS
 
 def array_to_string(array):
@@ -70,20 +71,25 @@ def main(_):
 
   # Parameters to save and restore
   discounts = [1, 1, 0.9]
-  use_pre_trained = False
+  gurobi = False
+  use_pre_trained = gurobi or False
   multi_objective = True
   env = make_environment(multi_objective, array_to_string(discounts))
   environment_spec = specs.make_environment_spec(env)
-  network = networks.DuellingMLP(3,  (256, 256))
+  network = networks.DuellingMLP(3,  (128, 128))
   tensorboard_writer = createTensorboardWriter("./train/", "DQN")
 
   if use_pre_trained:
     epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=1.0, eps_start=0, eps_end=0)
   else:
-    epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=0.15, eps_start=1, eps_end=0)
+    epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=0.3, eps_start=1, eps_end=0)
 
-  if multi_objective:
-      agent = MOdqn.MODQN(environment_spec, network, discount=discounts, epsilon=epsilon_schedule, learning_rate=1e-5,
+  if gurobi:
+      agent = lp.LP(environment_spec, network, epsilon=epsilon_schedule, learning_rate=1e-3,
+                  batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
+                  checkpoint=True, checkpoint_subpath='./checkpoints/', target_update_period=200)
+  elif multi_objective:
+      agent = MOdqn.MODQN(environment_spec, network, discount=discounts, epsilon=epsilon_schedule, learning_rate=5e-5,
                   batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
                   checkpoint=True, checkpoint_subpath='./checkpoints/', target_update_period=200)
   else:
@@ -93,32 +99,36 @@ def main(_):
 
   if use_pre_trained:
       agent.restore()
-
+  #else:
   loop = acme.EnvironmentLoop(env, agent, tensorboard_writer=tensorboard_writer)
   loop.run(num_steps=FLAGS.num_steps)
+  agent.save_checkpoints(force=True)
 
   #for i in range(FLAGS.num_steps):
   #    loop.run_step()
   #    loop.fetch_data()
-  agent.save_checkpoints(force=True)
 
-  test_trained_agent(agent, env, 1250)
+
+  test_trained_agent(agent, env, 8000)
   print("Pre-trained ##### ")
   epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=1.0, eps_start=0, eps_end=0)
   agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3,
                   batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
-                  checkpoint=True, checkpoint_subpath='./checkpoints_new_1/', target_update_period=200)
+                  checkpoint=True, checkpoint_subpath='./checkpoints/', target_update_period=200)
   agent.restore()
   test_trained_agent(agent, env, 1000)
   env.close()
 
+import time
 def test_trained_agent(agent : agent.Agent,
                        env : dm_env.Environment,
                        num_time_steps : int):
     timestep = env.reset()
     reward = 0
     for _ in range(num_time_steps):
+        s = time.time()
         action = agent.select_action(timestep.observation)
+        #print(time.time()-s)
         timestep = env.step(action)
         reward += timestep.reward
         if timestep.last():

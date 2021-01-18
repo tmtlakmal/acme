@@ -2,16 +2,57 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+
+def func(df, lower, upper, string='episode number'):
+    data = df[(df[string] >= lower) & (df[string] < upper)]
+    return data
+
+def smooth_data(file_name, column, weight):
+    df = pd.read_csv(file_name)
+
+    df = func(df, 0, 400000, 'Step')
+
+    df['Smoothed Value'] = df[column].rolling(100, min_periods=1).mean()
+    df.to_csv(file_name)
+
+
+def compare_trajectories(file_name1, file_name2, lower, num_items):
+    upper = lower+num_items
+    df_original_1 = pd.read_csv(file_name1)
+    df_original_2 = pd.read_csv(file_name2)
+
+    l = []
+    l1 = []
+    l2 = []
+    l3 = []
+    for i in range(1,num_items):
+
+        len = (21+i)*5-1
+
+        df1 = func(df_original_1, i-1, i)
+        df2 = func(df_original_2, i-1, i)
+
+        result = df1['distance']-df2['distance']
+        avg = (result[0:len].abs().sum())/len
+        print(avg, len, df1['distance'][0:len].sum()/400, df2['distance'][0:len].sum()/400)
+        l.append(len)
+        l1.append(df1['distance'][0:len].sum()/400)
+        l2.append(df2['distance'][0:len].sum()/400)
+        l3.append(abs(df1['distance'][0:len].sum()/400-df2['distance'][0:len].sum()/400))
+
+    df = pd.DataFrame(list(zip(l, l1, l2, l3)), columns=['index', 'DQN', 'Gurobi', 'diff'])
+    df.to_csv('lp_comparison.csv')
+
+
+
 def load_result_from_csv(lower, num_items, file_name='../RL_Agent/Vehicle/Episode_data.csv'):
     upper = lower+num_items
     df = pd.read_csv(file_name)
 
-    def func(df, lower, upper, string='episode number'):
-        data = df[(df[string] >= lower) & (df[string] < upper)]
-        return data
+
 
     df = func(df, lower ,upper)
-    #df = func(df, 140, 180, 'step')
+    df = func(df, 0, 220, 'step')
 
     def get_headway(x,y):
         if not (x == -1 or x == 99):
@@ -32,29 +73,37 @@ def load_result_from_csv(lower, num_items, file_name='../RL_Agent/Vehicle/Episod
     #df['new'] = df['new'].apply(lambda x : round(396 - x))
 
     df['new'] = df['gap'].apply(lambda x : filter_range(x))
-    decimals = pd.Series([0, 1], index=['distance', 'step'])
+    #decimals = pd.Series([0, 1], index=['distance', 'step'])
 
-    df = df.round(decimals)
-
-    print(max(df['episode number']))
-    annot = df.pivot('episode number', 'step', 'distance')
+    #df = df.round(decimals)
+    pd.set_option("display.max_rows", None, "display.max_columns", None)
+    #print(df['speed'])
+    #print(max(df['episode number']))
+    annot = df.pivot('episode number', 'step', 'speed')
     #annot = annot.round(decimals)
-    annot = annot.astype('Int64')
+    #annot = annot.astype('Int64')
     df = df.pivot('episode number', 'step', 'speed')
 
     sns.heatmap(df,
                 #annot=annot,
                 #fmt='d',
-                vmin=0, vmax=22
+                vmin=-1, vmax=25
                 )
     plt.show()
 
 #file_name='../gym/backup_episode_data/episode_data_2.csv'
 #file_name='../gym/episode_data_9.200000000000001.csv'
-file_name='../gym/episode_data_x1x1x0.9.csv'
+file_name='../gym/episode_data_x0.99x0.99x0.99.csv'
+file_name1='../gym/episode_data_x1x1x1.csv'
+file_name='../plotters/reward_2_18.csv'
+#file_name='/home/student.unimelb.edu.au/pgunarathna/Downloads/run-DQN_11-tag-environment loop_episode_reward_2.csv'
 #file_name='../../external_interface/episode_data_2_x0.9x1x1.csv'
+
 if __name__ == '__main__':
     print(file_name)
-    load_result_from_csv(1330, 20,
-                         file_name=file_name
-                         )
+    smooth_data(file_name, 'Value', 0.9)
+    #compare_trajectories(file_name1, file_name2, 0 , 20)
+
+    #load_result_from_csv(3000, 100,
+    #                     file_name=file_name
+    #                     )
