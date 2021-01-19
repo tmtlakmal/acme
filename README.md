@@ -11,7 +11,7 @@ Following are the key files we develop for Multi-discount Q-learning. Please ref
 3. acme/agents/tf/MOdqn/agent.py : Multi-discount Q-learning Agent (Actor + learner)
 4. acme/agents/tf/MOdqn/learning.py : Multi-discount Q-learning learner
 5. acme/adders/reverb/transition.py [MoNStepTransitionAdder] : Creates sample for experience replay by multiplying the reward vector and discount vector and the reward dependent discount function. 
-6. acme/agents/tf/actors.py : Linear Programming formulation
+6. acme/agents/tf/actors.py [GurobiLpActor] : Linear programming formulation
 
 ### SMARTS
 
