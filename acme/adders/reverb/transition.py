@@ -204,9 +204,9 @@ class MoNStepTransitionAdder(base.ReverbAdder):
 
     s_t = state observation at time t
     a_t = the action taken from s_t
-    r_t = reward ensuing from action a_t
+    r_t = reward vector ensuing from action a_t
     d_t = environment discount ensuing from action a_t. This discount is
-        applied to future rewards after r_t.
+        applied to future rewards after r_t. This is a vector
     e_t [Optional] = extra data that the agent persists in replay.
 
   For N greater than 1, transitions are of the form:
@@ -255,7 +255,7 @@ class MoNStepTransitionAdder(base.ReverbAdder):
         precise definition of what an N-step transition is. `n_step` must be at
         least 1, in which case we use the standard one-step transition, i.e.
         (s_t, a_t, r_t, d_t, s_t+1, e_t).
-      discount: Discount factor to apply. This corresponds to the
+      discounts: Discounts factor to apply. This corresponds to the
         agent's discount in the class docstring.
       priority_fns: See docstring for BaseAdder.
 
@@ -264,7 +264,7 @@ class MoNStepTransitionAdder(base.ReverbAdder):
     """
     # Makes the additional discount a float32, which means that it will be
     # upcast if rewards/discounts are float64 and left alone otherwise.
-    #self._discount = np.float32(discount)
+
     self._discounts = np.array(discounts)
     super().__init__(
         client=client,
@@ -282,7 +282,7 @@ class MoNStepTransitionAdder(base.ReverbAdder):
     # Form the n-step transition given the steps.
     observation = self._buffer[0].observation
     action = self._buffer[0].action
-    #extras = self._buffer[0].extras
+
     next_observation = self._next_observation
 
     # Initialize the n-step return and the discount accumulators. We make a
@@ -298,34 +298,23 @@ class MoNStepTransitionAdder(base.ReverbAdder):
     # step.discounts. This is so that when the learner/update uses an additional
     # discount we don't apply it twice. Inside the following loop we will
     # apply this right before summing up the n_step_return.
+
+    # total_discount, reward and self._discounts are 1-D arrays
     for step in itertools.islice(self._buffer, 1, None):
       total_discount *= self._discounts
-      n_step_return += step.reward * total_discount
+      n_step_return += step.reward * total_discount # element-wise multiplication
       total_discount *= step.discount
 
-    if (next_observation[3] < 20):
+    # "extras" used to discount the Q(s,a) value which is later used in learning step
+    if (self._buffer[-1].reward[2]  != 0):
         extras = np.array(self._discounts[2], dtype=np.float32)
         total_discount = np.array(total_discount[2])
-        #n_step_return = n_step_return[1]
     else:
         extras = np.array(self._discounts[0], dtype=np.float32)
         total_discount = np.array(total_discount[0])
-        #n_step_return = n_step_return[0]
 
-    #if (self._buffer[-1].reward[2] < 0):
-    #    extras = np.array(self._discounts[2], dtype=np.float32)
-    #    total_discount = np.array(total_discount[2])
-    #if (next_observation[3] < 10):
-    #    extras = np.array(self._discounts[1], dtype=np.float32)
-    #    total_discount = np.array(total_discount[1])
-    #    #n_step_return = n_step_return[1]
-    #else:
-    #    extras = np.array(self._discounts[0], dtype=np.float32)
-    #    total_discount = np.array(total_discount[0])
-    #    #n_step_return = n_step_return[0]
-
+    # Summing up rewards
     n_step_return = np.sum(n_step_return, axis=0)
-
 
     if extras:
       transition = (observation, action, n_step_return, total_discount,

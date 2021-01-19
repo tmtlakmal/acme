@@ -40,6 +40,7 @@ def make_environment(multi_objective=True, additional_discount='') -> dm_env.Env
   environment =  Vehicle_env_mp(2, 3, front_vehicle=True, multi_objective=multi_objective)
   step_data_file = "episode_data_"+additional_discount+".csv" if multi_objective else "episode_data_single.csv"
   environment = wrappers.Monitor_save_step_data(environment, step_data_file=step_data_file)
+
   # Make sure the environment obeys the dm_env.Environment interface.
   environment = wrappers.GymWrapper(environment)
   environment = wrappers.SinglePrecisionWrapper(environment)
@@ -74,6 +75,7 @@ def main(_):
   gurobi = False
   use_pre_trained = gurobi or False
   multi_objective = True
+
   env = make_environment(multi_objective, array_to_string(discounts))
   environment_spec = specs.make_environment_spec(env)
   network = networks.DuellingMLP(3,  (128, 128))
@@ -85,9 +87,7 @@ def main(_):
     epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=0.3, eps_start=1, eps_end=0)
 
   if gurobi:
-      agent = lp.LP(environment_spec, network, epsilon=epsilon_schedule, learning_rate=1e-3,
-                  batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
-                  checkpoint=True, checkpoint_subpath='./checkpoints/', target_update_period=200)
+      agent = lp.LP()
   elif multi_objective:
       agent = MOdqn.MODQN(environment_spec, network, discount=discounts, epsilon=epsilon_schedule, learning_rate=5e-5,
                   batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
@@ -99,24 +99,12 @@ def main(_):
 
   if use_pre_trained:
       agent.restore()
-  #else:
-  loop = acme.EnvironmentLoop(env, agent, tensorboard_writer=tensorboard_writer)
-  loop.run(num_steps=FLAGS.num_steps)
-  agent.save_checkpoints(force=True)
-
-  #for i in range(FLAGS.num_steps):
-  #    loop.run_step()
-  #    loop.fetch_data()
-
+  else:
+    loop = acme.EnvironmentLoop(env, agent, tensorboard_writer=tensorboard_writer)
+    loop.run(num_steps=FLAGS.num_steps)
+    agent.save_checkpoints(force=True)
 
   test_trained_agent(agent, env, 8000)
-  print("Pre-trained ##### ")
-  epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=1.0, eps_start=0, eps_end=0)
-  agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3,
-                  batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
-                  checkpoint=True, checkpoint_subpath='./checkpoints/', target_update_period=200)
-  agent.restore()
-  test_trained_agent(agent, env, 1000)
   env.close()
 
 import time
@@ -126,7 +114,7 @@ def test_trained_agent(agent : agent.Agent,
     timestep = env.reset()
     reward = 0
     for _ in range(num_time_steps):
-        s = time.time()
+        #s = time.time()
         action = agent.select_action(timestep.observation)
         #print(time.time()-s)
         timestep = env.step(action)

@@ -11,19 +11,14 @@ class Vehicle_env_mp(gym.Env):
     """Custom Environment that follows gym interface"""
     metadata = {'render.modes': ['human']}
 
-    # num_actions : 3 accelerate, no change, de-acceleration
-    # max_speed: max speed of vehicles in ms-1
-    # time_to_reach: Time remaining to reach destination
-    # distance: Distance to destination
 
     def __init__(self, id, num_actions, max_speed=22.0, time_to_reach=45.0, distance=500.0,
                  front_vehicle=False, multi_objective=True):
         super(Vehicle_env_mp, self).__init__()
         # Define action and observation space
         # They must be gym.spaces objects
-        # Example when using discrete actions:
         self.action_space = spaces.Discrete(num_actions)
-        # Example for using image as input:
+
         self.iter = 0
         self.sim_client = ZeroMqClient()
         self.is_front_vehicle = front_vehicle
@@ -48,6 +43,7 @@ class Vehicle_env_mp(gym.Env):
         self.last_speed = 0
         self.distance = 0
         self.multi_objective = multi_objective
+        self.control_length = 400
 
 
         # if simulator not used
@@ -69,7 +65,6 @@ class Vehicle_env_mp(gym.Env):
         else:
             paddleCommand = 1
 
-        #print("Action", paddleCommand)
         message_send = {'edges': [], 'vehicles':[{"index":self.id, "paddleCommand": paddleCommand}]}
 
         if self.is_simulator_used:
@@ -86,14 +81,14 @@ class Vehicle_env_mp(gym.Env):
         return observation, reward, done, info
 
     def reset(self):
-        #self.sim_client.send_message({"Reset": []})
+
         if self.is_simulator_used:
             message_send = {'edges': [], 'vehicles': [{"index": self.id, "paddleCommand": 0}]}
             self.distance = 380
             self.front_vehicle_end_time = 0
             message = self.sim_client.send_message(message_send)
             observation, _, _, _ = self.decode_message(message, 0)
-            #self.time_to_reach = np.random.randint(8,16)
+
             return observation # reward, done, info can't be included
         else:
             if self.is_front_vehicle:
@@ -144,6 +139,7 @@ class Vehicle_env_mp(gym.Env):
                     done = vehicle["done"]
                     obs = [speed, time, distance]
 
+                    # Reward vector creation
                     if done:
                         self.episode_num += 1
                         if vehicle["is_success"]:
@@ -152,7 +148,7 @@ class Vehicle_env_mp(gym.Env):
                         else:
                             reward[1] = -10.0
                     else:
-                        reward[0] = -distance/400 #self.distance - distance
+                        reward[0] = -distance/self.control_length #self.distance - distance
                         self.distance = distance
 
                     if vehicle["isVirtual"]:
@@ -170,7 +166,6 @@ class Vehicle_env_mp(gym.Env):
                         else:
                             acc = 0.0
 
-                        headway = gap / max(0.1, speed)
                         obs.extend([gap, front_vehicle_speed, acc])
 
                         if done:
@@ -182,11 +177,10 @@ class Vehicle_env_mp(gym.Env):
                                 info["is_success"] = True
                                 reward[1] = 10.0 + 3*speed
 
-                        if (gap > 6 and gap < 20):
-                            reward[2] = 0.1
-
                         if (gap < 10):
                             reward[2] = (gap - 6)/6
+                        elif (gap < 20):
+                            reward[2] = 0.1
 
                         if (vehicle['crashed']):
                             reward[2] = -400
@@ -194,7 +188,6 @@ class Vehicle_env_mp(gym.Env):
                             done = True
 
                         self.last_speed = front_vehicle_speed
-
 
         else:
             obs, reward, done, info = self.vehicle.step(action)
@@ -226,7 +219,7 @@ class Vehicle_env_mp(gym.Env):
         if self.multi_objective:
             reward = np.array(reward, dtype=np.float32)
         else:
-            reward = sum(reward) # if reward_1 == 0.0 else reward_1
+            reward = sum(reward)
 
         return np.array(obs, dtype=np.float32), reward, done, info
 
