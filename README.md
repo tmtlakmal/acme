@@ -15,11 +15,10 @@ Following are the key files we develop for Multi-discount Q-learning. Please ref
 
 ### SMARTS
 
-Note that the SMARTS simulator sholud be connected to python interface via zeromq message interface. The messages are transfered as JSON strings. The connection initiated from vehicle_env_mp.py file. 
-Any environment can be connected to run_dqn.py to test against any other environment. 
+Note that the SMARTS simulator should be connected to the python interface via the zeromq message interface. The messages are transferred as JSON strings. The connection initiated from vehicle_env_mp.py file. Any gym environment can be connected to run_dqn.py to test with multi-discount Q-learning.
+### Guide
 
-transition.py : This file contains how to convert normal Q-learning Equation into Multi-discount Q-learning according the Equation given in the SEction 5 in the manuscript.
-
+transition.py : This file contains how to convert normal Q-learning Equation into Multi-discount Q-learning according to the equation given in Section 5 in the manuscript.
 ### Dependencies
 
 channels:
@@ -166,5 +165,3 @@ dependencies:
     - wrapt==1.12.1
     - zipp==3.1.0
     - zmq==0.0.0
-prefix: /home/student.unimelb.edu.au/pgunarathna/anaconda3/envs/acme-gurobi
-
