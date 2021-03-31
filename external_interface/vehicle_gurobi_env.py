@@ -78,7 +78,7 @@ class Vehicle_gurobi_env_mp_split(gym.Env):
 
         #print("Action", paddleCommand)
         message_send = {"index":self.id, "paddleCommand": paddleCommand}
-        self.env.upate_actions(self.id, message_send)
+        self.env.update_actions(self.id, message_send)
 
         if self.is_front_vehicle:
             return np.array([0, 40, 400, 20, 380, 0], dtype=np.float32), 0, False, {}
@@ -92,7 +92,7 @@ class Vehicle_gurobi_env_mp_split(gym.Env):
             message_send = {"index": self.id, "paddleCommand": 0}
             self.distance = 380
             self.front_vehicle_end_time = 0
-            self.env.upate_actions(self.id, message_send)
+            self.env.update_actions(self.id, message_send)
             message = self.env.get_result()
             observation, _, _, _ = self.decode_message(message)
             #self.time_to_reach = np.random.randint(8,16)

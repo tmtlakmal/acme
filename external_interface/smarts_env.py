@@ -45,7 +45,7 @@ class SMARTS_env():
         print("Calling Init SMARTS...")
         self.result = self.sim_client.send_message({'Init':'start'})
 
-    def upate_actions(self, vid : int, message : dict):
+    def update_actions(self, vid : int, message : dict):
         self.message_to_send.append(message)
 
     def step(self):

@@ -37,7 +37,7 @@ tf.random.set_seed(1234)
 
 def make_environment(multi_objective=True, additional_discount='') -> dm_env.Environment:
 
-  environment =  Vehicle_env_mp(2, 3, front_vehicle=True, multi_objective=multi_objective)
+  environment =  Vehicle_env_mp(2, 3, front_vehicle=False, multi_objective=multi_objective)
   step_data_file = "episode_data_"+additional_discount+".csv" if multi_objective else "episode_data_single.csv"
   environment = wrappers.Monitor_save_step_data(environment, step_data_file=step_data_file)
 
@@ -71,9 +71,9 @@ def array_to_string(array):
 def main(_):
 
   # Parameters to save and restore
-  discounts = [1, 1, 0.9]
+  discounts = [0.92, 0.92, 0.92]
   gurobi = False
-  use_pre_trained = gurobi or False
+  use_pre_trained = gurobi or True
   multi_objective = True
 
   env = make_environment(multi_objective, array_to_string(discounts))
@@ -91,7 +91,7 @@ def main(_):
   elif multi_objective:
       agent = MOdqn.MODQN(environment_spec, network, discount=discounts, epsilon=epsilon_schedule, learning_rate=5e-5,
                   batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
-                  checkpoint=True, checkpoint_subpath='./checkpoints/', target_update_period=200)
+                  checkpoint=True, checkpoint_subpath='./checkpoints_single/', target_update_period=200)
   else:
       agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3,
                           batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
@@ -118,6 +118,7 @@ def test_trained_agent(agent : agent.Agent,
         action = agent.select_action(timestep.observation)
         #print(time.time()-s)
         timestep = env.step(action)
+        #print("reward: ", timestep.reward)
         reward += timestep.reward
         if timestep.last():
             timestep = env.reset()

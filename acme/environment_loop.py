@@ -366,6 +366,7 @@ class EnvironmentLoopSplit(core.Worker):
 
   def online_step(self):
 
+
     self.timestep = self._environment.get_step()
 
     if not self.id in self.returns_per_vehicle:
@@ -374,7 +375,10 @@ class EnvironmentLoopSplit(core.Worker):
 
     #if self.id % 1 == 0:
     #  print("Init states:",self.id, self.timestep.observation)
+
+    #self._actor.set_id(self.id)
     action = self._actor.select_action(self.timestep.observation)
+
 
     if not self.timestep.reward is None:
       self.returns_per_vehicle[self.id] += self.timestep.reward

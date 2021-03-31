@@ -36,7 +36,7 @@ class AgentHandler():
 
     def add_common_env(self):
         self.env_loops.clear()
-        self.env_loops.append(self.create_env_loop(0, trained=True))
+        self.env_loops.append(self.create_env_loop(0, trained=True, gurobi=False))
         self.env_loops[0].load()
 
     def create_loop(self, id, trained : bool = False, gurobi=False):
@@ -76,7 +76,7 @@ class AgentHandler():
 
 
 
-    def make_environment(self, id=1, env=None,  multi_objective=True, front_vehicle=True, extension='', gurobi=False) -> dm_env.Environment:
+    def make_environment(self, id=1, env=None,  multi_objective=True, front_vehicle=False, extension='', gurobi=False) -> dm_env.Environment:
 
         if gurobi:
             environment = Vehicle_gurobi_env_mp_split(id, 3, front_vehicle=front_vehicle, multi_objective=multi_objective, env=env)
@@ -84,7 +84,7 @@ class AgentHandler():
             environment = Vehicle_env_mp_split(id, 3, front_vehicle=front_vehicle, multi_objective=multi_objective, env=env)
 
         step_data_file = "episode_data_"+str(id)+"_"+extension+".csv" if multi_objective else "episode_data_single_"+str(id)+"_"+extension+".csv"
-        environment = wrappers.Monitor_save_step_data_split(environment, step_data_file=step_data_file)
+        #environment = wrappers.Monitor_save_step_data_split(environment, step_data_file=step_data_file)
 
         # Make sure the environment obeys the dm_env.Environment interface.
         environment = wrappers.GymWrapperSplit(environment)
@@ -105,19 +105,13 @@ class AgentHandler():
 
         #epsilon_schedule = LinearSchedule(400000, eps_fraction=0.3, eps_start=1, eps_end=0)
         if gurobi:
-            epsilon_schedule = LinearSchedule(400000, eps_fraction=1.0, eps_start=0, eps_end=0)
-            agent = lp.LP(environment_spec, network, epsilon=epsilon_schedule,
-                                learning_rate=1e-3,
-                                batch_size=256, samples_per_insert=256.0, tensorboard_writer=train_summary_writer,
-                                n_step=5,
-                                checkpoint=True, checkpoint_subpath='../examples/gym/checkpoints_new_2/',
-                                target_update_period=200)
+            agent = lp.LP()
 
         elif trained:
             epsilon_schedule = LinearSchedule(400000, eps_fraction=1.0, eps_start=0, eps_end=0)
             agent = MOdqn.MODQN(environment_spec, network, discount=discounts, epsilon=epsilon_schedule, learning_rate=1e-3,
                             batch_size=256, samples_per_insert=256.0, tensorboard_writer=train_summary_writer, n_step=5,
-                            checkpoint=True, checkpoint_subpath='../examples/gym/checkpoints_new_2/', target_update_period=200)
+                            checkpoint=True, checkpoint_subpath='../examples/gym/checkpoints_single/', target_update_period=200)
 
         else:
             epsilon_schedule = LinearSchedule(400000, eps_fraction=0.3, eps_start=1, eps_end=0)

@@ -13,12 +13,13 @@ Following are the key files we develop for Multi-discount Q-learning. Please ref
 5. acme/adders/reverb/transition.py [MoNStepTransitionAdder] : Creates sample for experience replay by multiplying the reward vector and discount vector and the reward dependent discount function. 
 6. acme/agents/tf/actors.py [GurobiLpActor] : Linear programming formulation
 
+transition.py : This file contains how to convert the normal Q-learning equation into Multi-discount Q-learning according the equations given in the Section 5 in the manuscript.
+
 ### SMARTS
 
 Note that the SMARTS simulator sholud be connected to python interface via zeromq message interface. The messages are transfered as JSON strings. The connection initiated from vehicle_env_mp.py file. 
 Any environment can be connected to run_dqn.py to test against any other environment. 
-
-transition.py : This file contains how to convert normal Q-learning Equation into Multi-discount Q-learning according the Equation given in the SEction 5 in the manuscript.
+SMARTS source code is not included in the source code.
 
 ### Dependencies
 

@@ -115,10 +115,11 @@ class GymWrapperSplit(dm_env.Environment):
 
   def step(self, action: types.NestedArray) -> dm_env.TimeStep:
     """Steps the environment."""
-    if self._reset_next_step:
-      return self.reset()
-
     observation, reward, done, info = self._environment.step(action)
+    #if self._reset_next_step:
+    #  return self.reset()
+
+
     self._reset_next_step = done
     if done:
       truncated = info.get('TimeLimit.truncated', False)
@@ -128,10 +129,12 @@ class GymWrapperSplit(dm_env.Environment):
     return dm_env.transition(reward, observation)
 
   def get_step(self) -> dm_env.TimeStep:
-    if self._reset_next_step:
-      return self.reset()
-
     observation, reward, done, info = self._environment.get_step()
+
+    #if self._reset_next_step:
+    #  return self.reset()
+
+
     self._reset_next_step = done
 
     if done:

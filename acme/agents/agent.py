@@ -77,6 +77,9 @@ class Agent(core.Actor, core.VariableSource):
     self._num_observations += 1
     self._actor.observe(action, next_timestep)
 
+  def set_id(self, id):
+    self._actor.set_id(id)
+
   def update(self):
     # Only allow updates after some minimum number of observations have been and
     # then at some period given by observations_per_update.
