@@ -81,7 +81,7 @@ dir= "7x7/Demand_amount/unidirectional/"
 import os
 path = 'C:/Users/pgunarathna/PycharmProjects/SMARTS_interface/Test/7x7/Demand_amount/'
 path = "/home/student.unimelb.edu.au/pgunarathna/IdeaProjects/Temporary_update_smarts/download/RQ2/Vehicles/"
-#path = "/home/student.unimelb.edu.au/pgunarathna/IdeaProjects/Data/"
+#path = "/home/student.unimelb.edu.au/pgunarathna/IdeaProjects/Data/ECML/I-AIM/"
 
 for dirname, _, file_names in os.walk(path):
     file_names.sort(key=lambda  x : os.path.getmtime(dirname+x), reverse=True)
@@ -99,7 +99,7 @@ for dirname, _, file_names in os.walk(path):
             #if name[0].find('txt') == -1:
             #    os.rename(dirname+file_name, dirname+name[0]+".txt")
 
-        if index > 15:
+        if index > 5:
             break
 
     break
