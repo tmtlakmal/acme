@@ -18,8 +18,8 @@ class Manager():
             self.env.step()
             self.env_handler.fetch_agent_data()
 
-    def online_run(self, timesteps : int):
-        self.env_handler.add_common_env()
+    def online_run(self, timesteps : int, gurobi=False):
+        self.env_handler.add_common_env(gurobi)
 
         self.first_step()
         self.env.step()
@@ -106,7 +106,7 @@ class Manager():
 
 if __name__ == '__main__':
     manager = Manager()
-    manager.online_run(30000)
+    manager.online_run(30000, gurobi=False)
 
     #manager.mixed_gurobi_run(400000)
     manager.close()

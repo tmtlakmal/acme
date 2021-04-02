@@ -26,6 +26,7 @@ from acme.utils import loggers
 import tensorflow as tf
 import dm_env
 import numpy as np
+from acme.agents.tf import actors
 
 
 class EnvironmentLoop(core.Worker):
@@ -376,7 +377,8 @@ class EnvironmentLoopSplit(core.Worker):
     #if self.id % 1 == 0:
     #  print("Init states:",self.id, self.timestep.observation)
 
-    #self._actor.set_id(self.id)
+    if isinstance(self._actor, actors.MultiGurobiLpActor):
+      self._actor.set_id(self.id)
     action = self._actor.select_action(self.timestep.observation)
 
 

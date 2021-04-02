@@ -354,13 +354,13 @@ class MultiGurobiLpActor(core.Actor):
 
 
     for i in range(N - 1):
-      model.addConstr(positions[0, i + 1] == positions[0, i] + velocity[0, i + 1] * self.step_size)
       model.addConstr(velocity[0, i + 1] == velocity[0, i] + (2.5*accelerations[0, i] - 0.5)  * self.step_size)
+      model.addConstr(positions[0, i + 1] == positions[0, i] + velocity[0, i + 1] * self.step_size)
 
 
     model.addConstr(positions[0, 0] == -distance)
     model.addConstr(positions[0, N - 1] >= -1)
-    model.addConstr(positions[0, N - 1] <= 5)
+    model.addConstr(positions[0, N - 1] <= 1)
 
     model.addConstr(velocity[0, 0] == round(np.float64(observation[0]), 2))
     # Constrain the end velocity between max velocity and max velocity - 4
@@ -383,7 +383,7 @@ class MultiGurobiLpActor(core.Actor):
       self.last_remain_time = self.trajectory_data[self.id].get_last_remain_time()
       self.front_vehicle_remain_time = 0
 
-    if ((not self.id in self.trajectory_data) or self.last_remain_time - observation[1] <= -2 or (observation.size > 4 and self.front_vehicle_remain_time - observation[4] < 0)):
+    if ((not self.id in self.trajectory_data) or abs(self.last_remain_time - observation[1]) >= 1 or (observation.size > 4 and self.front_vehicle_remain_time - observation[4] < 0)):
       # recompute
       if observation[1] == 0:
         return 0

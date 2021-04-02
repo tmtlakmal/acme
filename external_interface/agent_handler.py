@@ -34,9 +34,9 @@ class AgentHandler():
         step_data = self.env.get_result()
         self.add_new_requests(step_data['vehicles'])
 
-    def add_common_env(self):
+    def add_common_env(self, gurobi=False): # By Default RL agent will be used
         self.env_loops.clear()
-        self.env_loops.append(self.create_env_loop(0, trained=True, gurobi=False))
+        self.env_loops.append(self.create_env_loop(0, trained=(True and not gurobi), gurobi=gurobi))
         self.env_loops[0].load()
 
     def create_loop(self, id, trained : bool = False, gurobi=False):
