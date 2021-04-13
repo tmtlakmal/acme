@@ -18,7 +18,7 @@ transition.py : This file contains how to convert the normal Q-learning equation
 
 ### SMARTS
 
-Note that the SMARTS simulator sholud be connected to python interface via zeromq message interface. The messages are transfered as JSON strings. The connection initiated from vehicle_env_mp.py file. 
+Note that the SMARTS simulator should be connected to python interface via zeromq message interface. The messages are transfered as JSON strings. The connection initiated from vehicle_env_mp.py file. 
 Any environment can be connected to run_dqn.py to test against any other environment. 
 SMARTS source code is not included in the source code.
 
@@ -168,5 +168,4 @@ dependencies:
     - wrapt==1.12.1
     - zipp==3.1.0
     - zmq==0.0.0
-prefix: /home/student.unimelb.edu.au/pgunarathna/anaconda3/envs/acme-gurobi
 

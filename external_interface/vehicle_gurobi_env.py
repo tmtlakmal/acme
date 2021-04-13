@@ -16,7 +16,7 @@ class Vehicle_gurobi_env_mp_split(gym.Env):
     # time_to_reach: Time remaining to reach destination
     # distance: Distance to destination
 
-    def __init__(self, id, num_actions, max_speed=22.0, time_to_reach=45.0, distance=500.0,
+    def __init__(self, id, num_actions, max_speed=22.3, time_to_reach=45.0, distance=500.0,
                  front_vehicle=False, multi_objective=True, env : SMARTS_env = None):
         super(Vehicle_gurobi_env_mp_split, self).__init__()
         # Define action and observation space

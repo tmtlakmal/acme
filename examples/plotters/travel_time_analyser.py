@@ -99,7 +99,7 @@ for dirname, _, file_names in os.walk(path):
             #if name[0].find('txt') == -1:
             #    os.rename(dirname+file_name, dirname+name[0]+".txt")
 
-        if index > 5:
+        if index > 54:
             break
 
     break

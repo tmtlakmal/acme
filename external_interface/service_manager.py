@@ -107,6 +107,4 @@ class Manager():
 if __name__ == '__main__':
     manager = Manager()
     manager.online_run(30000, gurobi=False)
-
-    #manager.mixed_gurobi_run(400000)
     manager.close()

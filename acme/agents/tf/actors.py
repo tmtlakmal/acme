@@ -354,13 +354,13 @@ class MultiGurobiLpActor(core.Actor):
 
 
     for i in range(N - 1):
-      model.addConstr(velocity[0, i + 1] == velocity[0, i] + (2.5*accelerations[0, i] - 0.5)  * self.step_size)
       model.addConstr(positions[0, i + 1] == positions[0, i] + velocity[0, i + 1] * self.step_size)
+      model.addConstr(velocity[0, i + 1] == velocity[0, i] + (2.5*accelerations[0, i] - 0.5)  * self.step_size)
 
 
     model.addConstr(positions[0, 0] == -distance)
     model.addConstr(positions[0, N - 1] >= -1)
-    model.addConstr(positions[0, N - 1] <= 1)
+    model.addConstr(positions[0, N - 1] <= 5)
 
     model.addConstr(velocity[0, 0] == round(np.float64(observation[0]), 2))
     # Constrain the end velocity between max velocity and max velocity - 4
@@ -473,7 +473,7 @@ if __name__ == "__main__":
   for i in range(2):
     #step_data = np.array([6.52528, 22+i, 378.66312, 6.3916183, 20+i, 362.58725], dtype=np.float32)
     grl.set_id(i)
-    step_data = np.array([22., 32, 230.1004 ], dtype=np.float32)
+    step_data = np.array([ 9.422222,  4.3,      55.93694], dtype=np.float32)
     s = time.time()
     grl.select_action(step_data)
     print(time.time()-s)

@@ -49,7 +49,7 @@ class LP(agent.Agent):
 
 
     # Create the actor which defines how we take actions.
-    actor = actors.MultiGurobiLpActor(step_size=0.2, max_velocity=22.0)
+    actor = actors.MultiGurobiLpActor(step_size=0.2, max_velocity=22.22)
 
     # The learner updates the parameters (and initializes them).
 
