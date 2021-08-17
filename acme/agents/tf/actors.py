@@ -109,6 +109,81 @@ class FeedForwardActor(core.Actor):
     if self._variable_client:
       self._variable_client.update()
 
+class TLForwardActor(core.Actor):
+  """A set of feed-forward actors with lexicographic order.
+
+  The actors based on a feed-forward policy which takes non-batched observations
+  and outputs non-batched actions. Each actor takes action one after the other based
+  on a lexicographic order.It also allows adding experiences to replay
+  and updating the weights from the policy on the learner.
+  """
+
+  def __init__(
+      self,
+      policy_networks: [snt.Module],
+      epsilon_scheduler: Optional[Union[Schedule, tf.Tensor]] = None,
+      adder: Optional[adders.Adder] = None,
+      variable_client: Optional[tf2_variable_utils.VariableClient] = None,
+      tensorboard_writer=None
+  ):
+    """Initializes the actor.
+
+    Args:
+      policy_networks: the policies to run in lexicographic order.
+      adder: the adder object to which allows to add experiences to a
+        dataset/replay buffer.
+      variable_client: object which allows to copy weights from the learner copy
+        of the policy to the actor copy (in case they are separate).
+    """
+
+    # Store these for later use.
+    self._adder = adder
+    self._variable_client = variable_client
+    self._policy_networks = [tf.function(policy_network)  for policy_network in policy_networks]
+    self.epsilon_scheduler = epsilon_scheduler
+    self.epsilon = tf.Variable(1.0, trainable=False) if isinstance(self.epsilon_scheduler, Schedule) \
+                   else epsilon_scheduler
+
+    self._tensorboard_writer = tensorboard_writer
+
+  def select_action(self, observation: types.NestedArray) -> types.NestedArray:
+    # Add a dummy batch dimension and as a side effect convert numpy to TF.
+    batched_obs = tf2_utils.add_batch_dim(observation)
+
+    if isinstance(self.epsilon_scheduler, Schedule):
+      self.epsilon.assign(self.epsilon_scheduler.value())
+
+    # Forward the policy network.
+    policy_output = []
+    for policy_network in self._policy_networks:
+      policy_output.append(policy_network(batched_obs, self.epsilon))
+
+    #process order of acton and select
+
+    # If the policy network parameterises a distribution, sample from it.
+    def maybe_sample(output):
+      if isinstance(output, tfd.Distribution):
+        output = output.sample()
+      return output
+
+    policy_output = tree.map_structure(maybe_sample, policy_output)
+
+    # Convert to numpy and squeeze out the batch dimension.
+    action = tf2_utils.to_numpy_squeeze(policy_output)
+
+    return action
+
+  def observe_first(self, timestep: dm_env.TimeStep):
+    if self._adder:
+      self._adder.add_first(timestep)
+
+  def observe(self, action: types.NestedArray, next_timestep: dm_env.TimeStep):
+    if self._adder:
+      self._adder.add(action, next_timestep)
+
+  def update(self):
+    if self._variable_client:
+      self._variable_client.update()
 
 class RecurrentActor(core.Actor):
   """A recurrent actor.
@@ -355,12 +430,12 @@ class MultiGurobiLpActor(core.Actor):
 
     for i in range(N - 1):
       model.addConstr(positions[0, i + 1] == positions[0, i] + velocity[0, i + 1] * self.step_size)
-      model.addConstr(velocity[0, i + 1] == velocity[0, i] + (2.5*accelerations[0, i] - 0.5)  * self.step_size)
+      model.addConstr(velocity[0, i + 1] == velocity[0, i] + (2.5*accelerations[0, i]-0.5)  * self.step_size)
 
 
     model.addConstr(positions[0, 0] == -distance)
-    model.addConstr(positions[0, N - 1] >= -1)
-    model.addConstr(positions[0, N - 1] <= 5)
+    model.addConstr(positions[0, N - 1] >= -5)
+    model.addConstr(positions[0, N - 1] <= 2)
 
     model.addConstr(velocity[0, 0] == round(np.float64(observation[0]), 2))
     # Constrain the end velocity between max velocity and max velocity - 4
@@ -434,6 +509,54 @@ class MultiGurobiLpActor(core.Actor):
     return  list_data
 import copy
 
+class Heuristic(core.Actor):
+
+  def __init__(self, step_size, max_velocity):
+      self.step_size = step_size
+      self.max_velocity = max_velocity
+      self.acceleration = 2
+
+      self.early_stopping_distance = 200
+      self.early_start_time = 15
+
+  def select_action(self, observation: types.NestedArray) -> types.NestedArray:
+      speed, time, distance = observation[0], observation[1], observation[2]
+
+      temp_time = (self.max_velocity - speed)/self.acceleration
+      extra_time = max(time-temp_time, 0)
+      time_to_max_speed = time-extra_time
+
+      predicted_distance = 0.5 * self.acceleration * (time_to_max_speed ** 2) \
+                           + self.max_velocity * extra_time
+
+      min_distance_to_stop = (speed**2)/(2*(self.acceleration+1))
+
+      if time < self.early_start_time:
+        if predicted_distance < 0.85*distance:
+          action = 2
+        elif predicted_distance < 1.2*distance:
+          action = 1
+        else:
+          action = 0
+      elif min_distance_to_stop > 0.9 * (distance - self.early_stopping_distance):
+        action = 0
+      else:
+        action = 2
+
+      return action
+
+
+  def observe_first(self, timestep: dm_env.TimeStep):
+     pass
+
+  def observe(self, action: types.NestedArray, next_timestep: dm_env.TimeStep):
+    pass
+
+  def update(self):
+    pass
+
+
+
 class Trajectory:
 
   def __init__(self, model, accelerations, distance, velocity, last_remain_time):
@@ -464,6 +587,8 @@ class Trajectory:
     self.velocity = velocity
     self.current_index = 0
     self.last_remain_time = last_remain_time
+
+
 
 
 import time

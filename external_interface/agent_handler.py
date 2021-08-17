@@ -11,8 +11,7 @@ from acme.tf import networks
 from acme.utils import paths
 from external_interface.vehicle_env import Vehicle_env_mp_split
 from external_interface.vehicle_gurobi_env import  Vehicle_gurobi_env_mp_split
-from acme.agents import  agent
-from acme.agents.gurobi import lp
+from acme.agents.gurobi.lp.agent import LP
 
 import dm_env
 import tensorflow as tf
@@ -34,13 +33,13 @@ class AgentHandler():
         step_data = self.env.get_result()
         self.add_new_requests(step_data['vehicles'])
 
-    def add_common_env(self, gurobi=False): # By Default RL agent will be used
+    def add_common_env(self, controller="RL"): # By Default RL agent will be used
         self.env_loops.clear()
-        self.env_loops.append(self.create_env_loop(0, trained=(True and not gurobi), gurobi=gurobi))
+        self.env_loops.append(self.create_env_loop(0, trained=(True if controller=="RL" else False), controller=controller))
         self.env_loops[0].load()
 
-    def create_loop(self, id, trained : bool = False, gurobi=False):
-        self.env_loops.append(self.create_env_loop(id, trained, gurobi))
+    def create_loop(self, id, trained : bool = False, controller="RL"):
+        self.env_loops.append(self.create_env_loop(id, trained, controller=controller))
 
     def add_new_requests(self, vehicles):
         for vehicle in vehicles:
@@ -57,28 +56,28 @@ class AgentHandler():
         for env_loop in self.env_loops:
             env_loop.fetch_data()
 
-    def create_env_loop(self, id, trained = False, gurobi = False):
+    def create_env_loop(self, id, trained = False, controller = "RL"):
         train_summary_writer = self.createTensorboardWriter("./train/", "DQN")
 
         discounts = [1, 1, 0.9]
         extension = array_to_string(discounts)
-        if trained:
-            env = self.make_environment(id, env=self.env, front_vehicle=False, extension=extension, gurobi=gurobi)
-            agent = self.create_agent(env, discounts, train_summary_writer=None, trained=trained)
-            env_loop = acme.EnvironmentLoopSplit(env, agent, tensorboard_writer=None, id=id)
-            return env_loop
+        #if trained:
+        #    env = self.make_environment(id, env=self.env, front_vehicle=False, extension=extension, controller=controller)
+        #    agent = self.create_agent(env, discounts, train_summary_writer=None, trained=trained)
+        #    env_loop = acme.EnvironmentLoopSplit(env, agent, tensorboard_writer=None, id=id)
+        #    return env_loop
 
-        env = self.make_environment(id, env=self.env, extension=extension, gurobi=gurobi)
-        agent = self.create_agent(env, discounts, train_summary_writer, gurobi=gurobi)
+        env = self.make_environment(id, env=self.env, extension=extension, controller=controller)
+        agent = self.create_agent(env, discounts, train_summary_writer, controller=controller, trained=trained)
         env_loop = acme.EnvironmentLoopSplit(env, agent, tensorboard_writer=train_summary_writer, id=id)
 
         return env_loop
 
 
 
-    def make_environment(self, id=1, env=None,  multi_objective=True, front_vehicle=False, extension='', gurobi=False) -> dm_env.Environment:
+    def make_environment(self, id=1, env=None,  multi_objective=True, front_vehicle=False, extension='', controller="RL") -> dm_env.Environment:
 
-        if gurobi:
+        if not controller == "RL":
             environment = Vehicle_gurobi_env_mp_split(id, 3, front_vehicle=front_vehicle, multi_objective=multi_objective, env=env)
         else:
             environment = Vehicle_env_mp_split(id, 3, front_vehicle=front_vehicle, multi_objective=multi_objective, env=env)
@@ -98,21 +97,21 @@ class AgentHandler():
         train_summary_writer = tf.summary.create_file_writer(train_log_dir)
         return train_summary_writer
 
-    def create_agent(self, env : dm_env, discounts : [int], train_summary_writer : None, trained : bool = False, gurobi=False):
+    def create_agent(self, env : dm_env, discounts : [int], train_summary_writer : None, trained : bool = False, controller="RL"):
 
         environment_spec =  specs.make_environment_spec(env)
         network = networks.DuellingMLP(3, (128, 128))
 
         #epsilon_schedule = LinearSchedule(400000, eps_fraction=0.3, eps_start=1, eps_end=0)
-        if gurobi:
-            agent = lp.LP()
-
-        elif trained:
+        if controller == "Gurobi":
+            agent = LP()
+        elif controller == "Heuristic":
+            agent = LP() #Heuristic()
+        elif controller == "RL" and trained:
             epsilon_schedule = LinearSchedule(400000, eps_fraction=1.0, eps_start=0, eps_end=0)
             agent = MOdqn.MODQN(environment_spec, network, discount=discounts, epsilon=epsilon_schedule, learning_rate=1e-3,
-                            batch_size=256, samples_per_insert=256.0, tensorboard_writer=train_summary_writer, n_step=5,
-                            checkpoint=True, checkpoint_subpath='../examples/gym/checkpoints_single/', target_update_period=200)
-
+                            batch_size=256, samples_per_insert=256.0, tensorboard_writer=None, n_step=5,
+                            checkpoint=True, checkpoint_subpath='../logs/backup/DQN_86/checkpoints_single/', target_update_period=200)
         else:
             epsilon_schedule = LinearSchedule(400000, eps_fraction=0.3, eps_start=1, eps_end=0)
             agent = MOdqn.MODQN(environment_spec, network, discount=discounts, epsilon=epsilon_schedule, learning_rate=1e-3,

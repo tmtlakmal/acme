@@ -18,15 +18,14 @@ class Manager():
             self.env.step()
             self.env_handler.fetch_agent_data()
 
-    def online_run(self, timesteps : int, gurobi=False):
-        self.env_handler.add_common_env(gurobi)
+    def online_run(self, timesteps : int, controller="RL"):
+        self.env_handler.add_common_env(controller)
 
         self.first_step()
         self.env.step()
         result = self.env.get_result()
 
         for i in range(timesteps):
-
             index = 0
             for vehicle in result['vehicles']:
                 if vehicle['externalControl']:
@@ -34,10 +33,7 @@ class Manager():
                     id = vehicle['vid']
                     self.env_handler.env_loops[0].set_id(id)
                     self.env_handler.env_loops[0].online_step()
-
-
             self.env.step()
-
             result = self.env.get_result()
 
     def mixed_run(self, timesteps):
@@ -106,5 +102,5 @@ class Manager():
 
 if __name__ == '__main__':
     manager = Manager()
-    manager.online_run(30000, gurobi=False)
+    manager.online_run(30000, controller="Gurobi")
     manager.close()

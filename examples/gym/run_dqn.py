@@ -14,10 +14,12 @@
 # limitations under the License.
 
 """Run DQN on Atari."""
+import os.path
+import json
 from acme.agents.tf import dqn
 from acme.agents.tf import MOdqn
 from acme.agents.gurobi import lp
-from absl import app
+import pprint as pp
 from absl import flags
 import acme
 from acme import specs
@@ -25,20 +27,20 @@ from acme.utils.schedulers import LinearSchedule
 from acme import wrappers
 from acme.tf import networks
 from acme.utils import paths
-from external_env.vehicle_controller.vehicle_env import Vehicle_env
 from external_env.vehicle_controller.vehicle_env_mp import Vehicle_env_mp
-from external_env.vehicle_controller.split_env import Vehicle_env_mp_split
 from acme.agents import  agent
 
+import argparse
 import dm_env
 import tensorflow as tf
 
 tf.random.set_seed(1234)
 
-def make_environment(multi_objective=True, additional_discount='') -> dm_env.Environment:
 
-  environment =  Vehicle_env_mp(2, 3, front_vehicle=False, multi_objective=multi_objective)
-  step_data_file = "episode_data_"+additional_discount+".csv" if multi_objective else "episode_data_single.csv"
+def make_environment(num_actions=3, multi_objective=True, front_vehicle=False, path='./') -> dm_env.Environment:
+
+  environment =  Vehicle_env_mp(2, num_actions=num_actions, front_vehicle=front_vehicle, multi_objective=multi_objective, use_smarts=True)
+  step_data_file = os.path.join(path, "episode_data.csv")
   environment = wrappers.Monitor_save_step_data(environment, step_data_file=step_data_file)
 
   # Make sure the environment obeys the dm_env.Environment interface.
@@ -52,15 +54,14 @@ def createTensorboardWriter(tensorboard_log_dir, suffix):
     train_log_dir = tensorboard_log_dir + suffix + "_"+ str(id)
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
     print("Tensorboard logs at ", train_log_dir)
-    return train_summary_writer
+    return train_summary_writer, train_log_dir
 
 def createNextFileName(tensorboard_log_dir, suffix):
     id = paths.find_next_path_id(tensorboard_log_dir, suffix) + 1
     return  tensorboard_log_dir + suffix + "_"+ str(id)
 
 flags.DEFINE_integer('num_episodes', 10000, 'Number of episodes to train for.')
-flags.DEFINE_integer('num_steps', 360000, 'Number of steps to train for.')
-FLAGS = flags.FLAGS
+flags.DEFINE_integer('num_steps', 500000, 'Number of steps to train for.')
 
 def array_to_string(array):
     s = ''
@@ -68,43 +69,50 @@ def array_to_string(array):
         s += 'x'+str(i)
     return  s
 
-def main(_):
+def main(opts):
 
   # Parameters to save and restore
-  discounts = [0.92, 0.92, 0.92]
-  gurobi = False
-  use_pre_trained = gurobi or True
-  multi_objective = True
 
-  env = make_environment(multi_objective, array_to_string(discounts))
+  tensorboard_writer, path = createTensorboardWriter(opts.log_dir, "DQN")
+
+  with open(os.path.join(path, "args.json"), 'w') as f:
+      json.dump(vars(opts), f, indent=True)
+
+  env = make_environment(num_actions=opts.num_actions, multi_objective=opts.multi_objective,
+                         front_vehicle=opts.front_vehicle, path=path)
   environment_spec = specs.make_environment_spec(env)
   network = networks.DuellingMLP(3,  (128, 128))
-  tensorboard_writer = createTensorboardWriter("./train/", "DQN")
 
-  if use_pre_trained:
-    epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=1.0, eps_start=0, eps_end=0)
+
+  if opts.pretrained is not None:
+        epsilon_schedule = LinearSchedule(opts.num_steps, eps_fraction=1.0, eps_start=0, eps_end=0)
   else:
-    epsilon_schedule = LinearSchedule(FLAGS.num_steps, eps_fraction=0.3, eps_start=1, eps_end=0)
+        epsilon_schedule = LinearSchedule(opts.num_steps, eps_fraction=0.5, eps_start=1, eps_end=0)
 
-  if gurobi:
+  checkpoint_path = os.path.join(opts.pretrained if opts.pretrained is not None else path, 'checkpoints_single')
+
+  if opts.controller == 'Gurobi':
       agent = lp.LP()
-  elif multi_objective:
-      agent = MOdqn.MODQN(environment_spec, network, discount=discounts, epsilon=epsilon_schedule, learning_rate=5e-5,
+  elif opts.controller == 'Heuristic':
+      agent = lp.Heuristic()
+  else:
+      if opts.multi_objective:
+            agent = MOdqn.MODQN(environment_spec, network, discount=opts.discounts, epsilon=epsilon_schedule, learning_rate=5e-5,
                   batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
-                  checkpoint=True, checkpoint_subpath='./checkpoints_single/', target_update_period=200)
-  else:
-      agent = dqn.DQN(environment_spec, network, discount=1, epsilon=epsilon_schedule, learning_rate=1e-3,
+                  checkpoint=True, checkpoint_subpath=checkpoint_path, target_update_period=200)
+      else:
+            agent = dqn.DQN(environment_spec, network, discount=opts.discounts[0], epsilon=epsilon_schedule, learning_rate=1e-4,
                           batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
-                          checkpoint=True, checkpoint_subpath='./checkpoints/', target_update_period=200)
+                          checkpoint=True, checkpoint_subpath=checkpoint_path, target_update_period=200)
 
-  if use_pre_trained:
+  if opts.pretrained is not None:
       agent.restore()
-  else:
+  if not opts.eval_only:
     loop = acme.EnvironmentLoop(env, agent, tensorboard_writer=tensorboard_writer)
-    loop.run(num_steps=FLAGS.num_steps)
+    loop.run(num_steps=opts.num_steps)
     agent.save_checkpoints(force=True)
 
-  test_trained_agent(agent, env, 8000)
+  test_trained_agent(agent, env, opts.test_steps)
   env.close()
 
 import time
@@ -124,6 +132,43 @@ def test_trained_agent(agent : agent.Agent,
             timestep = env.reset()
             print("Episode reward: ", reward)
             reward = 0
+    env.close()
 
 if __name__ == '__main__':
-  app.run(main)
+    parser = argparse.ArgumentParser(description="Single agent to connect with SMARTS")
+
+    parser.add_argument('--controller', default='RL', help="Available controllers (RL, Gurobi, Heuristic)")
+    parser.add_argument('--multi_objective', action='store_true', help="if true use MD-DQN")
+    parser.add_argument('--log_dir', default='../../logs/', help='Directory to write TensorBoard information to')
+    parser.add_argument('--output_dir', default='../../outputs/', help='Directory to write output models to')
+    parser.add_argument('--pretrained', help='pretrained file location')
+    parser.add_argument('--eval_only', help='Evaluation only, no training')
+    parser.add_argument('--discounts', nargs='+', default=[1, 1, 1],
+                        help="Discount factors for each objective")
+
+    parser.add_argument('--num_steps', default=500000, help='Number of steps to train for.')
+    parser.add_argument('--test_steps', default=4000, help='Number of steps to test for.')
+
+    ## Similation setting
+    parser.add_argument('--front_vehicle', action='store_true', help='Use front vehicle information')
+    parser.add_argument('--step_size', default=0.2, help='Use front vehicle information')
+    parser.add_argument('--num_actions', default=3, type=int, help='The number of actions the agent can take')
+
+
+    opts = parser.parse_args()
+
+    ## Set opts here or in the terminal
+    opts.multi_objective = True
+    opts.controller = "RL"
+    opts.eval_only = False
+    #opts.pretrained = "../../checkpoints/"
+    opts.discounts = [1, 1, 1]
+    opts.front_vehicle = False
+
+    if opts.controller is not "RL":
+        opts.eval_only = True
+
+    assert not (opts.multi_objective == True and len(opts.discounts) <= 1) , "Discount size should be equals to the number of objectives"
+
+    pp.pprint(vars(opts))
+    main(opts)

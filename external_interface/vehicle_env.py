@@ -50,6 +50,7 @@ class Vehicle_env_mp_split(gym.Env):
         self.distance = 380
         self.multi_objective = multi_objective
 
+        self.crash_counter = 0
 
         # if simulator not used
         self.vehicle = Vehicle()
@@ -121,6 +122,7 @@ class Vehicle_env_mp_split(gym.Env):
       pass
 
     def close (self):
+      print("Crash Risk", self.crash_counter)
       print("Correctly ended episodes", self.correctly_ended)
       pass
 
@@ -147,6 +149,9 @@ class Vehicle_env_mp_split(gym.Env):
                     done = vehicle["done"]
 
                     obs = [speed, time, distance]
+
+                    if vehicle["isCrashRisk"]:
+                        self.crash_counter += 1
 
                     if done:
                         self.episode_num += 1
@@ -193,6 +198,7 @@ class Vehicle_env_mp_split(gym.Env):
                             reward[2] = (gap - 6)/6
 
                         if (vehicle['crashed']):
+                            print("############### Crashed #############")
                             reward[2] = -400
                             reward[1] = 0
                             done = True

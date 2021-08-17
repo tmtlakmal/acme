@@ -26,7 +26,7 @@ from acme.utils import loggers
 import tensorflow as tf
 import dm_env
 import numpy as np
-from acme.agents.gurobi.lp import LP
+from acme.agents.gurobi.lp.agent import LP
 
 
 class EnvironmentLoop(core.Worker):

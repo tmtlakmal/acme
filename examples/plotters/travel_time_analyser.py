@@ -74,14 +74,12 @@ def sort(df, column_name):
 
     df.sort_values([column_name])
 
-#dir= "7x7"+"/Conflict/"
-dir= "7x7/Demand_amount/unidirectional/"
-#file_names = ["VD_CLLA_28.txt", "VD_noLA_28.txt"]
 
 import os
 path = 'C:/Users/pgunarathna/PycharmProjects/SMARTS_interface/Test/7x7/Demand_amount/'
 path = "/home/student.unimelb.edu.au/pgunarathna/IdeaProjects/Temporary_update_smarts/download/RQ2/Vehicles/"
-#path = "/home/student.unimelb.edu.au/pgunarathna/IdeaProjects/Data/ECML/I-AIM/"
+path = "/home/student.unimelb.edu.au/pgunarathna/IdeaProjects/smarts/smarts_code/download/"
+#path = "/mnt/4000v-udp31-l/home/student.unimelb.edu.au/pgunarathna/IdeaProjects/Temporary_update_smarts/download/RQ2/Vehicles/"
 
 for dirname, _, file_names in os.walk(path):
     file_names.sort(key=lambda  x : os.path.getmtime(dirname+x), reverse=True)
@@ -99,7 +97,7 @@ for dirname, _, file_names in os.walk(path):
             #if name[0].find('txt') == -1:
             #    os.rename(dirname+file_name, dirname+name[0]+".txt")
 
-        if index > 54:
+        if index > 10:
             break
 
     break

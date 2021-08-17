@@ -1,9 +1,6 @@
 import gym
-import zmq
-import numpy as np
 from gym import spaces
-#from External_Interface.zeromq_client import ZeroMqClient
-from external_env.vehicle_controller.vehicle_obj import  Vehicle
+from external_env.vehicle_controller.simulator_interface import SmartsSimulator, PythonSimulator
 from external_env.vehicle_controller.base_controller import *
 from external_interface.zeromq_client import ZeroMqClient
 
@@ -11,9 +8,8 @@ class Vehicle_env_mp(gym.Env):
     """Custom Environment that follows gym interface"""
     metadata = {'render.modes': ['human']}
 
-
     def __init__(self, id, num_actions, max_speed=22.0, time_to_reach=45.0, distance=500.0,
-                 front_vehicle=False, multi_objective=True):
+                 front_vehicle=False, multi_objective=True, use_smarts=False):
         super(Vehicle_env_mp, self).__init__()
         # Define action and observation space
         # They must be gym.spaces objects
@@ -31,9 +27,19 @@ class Vehicle_env_mp(gym.Env):
                                                 high=np.array([max_speed, time_to_reach, distance, distance, max_speed, 1.0]), dtype=np.float32)
 
         self.is_episodic = True
-        self.is_simulator_used = True
+        self.is_simulator_used = use_smarts
+
+        self.step_size = 0.2
+
+        if use_smarts:
+            self.sim_interface = SmartsSimulator(vehicle_id=id, num_actions=num_actions, front_vehicle=front_vehicle)
+        else:
+            self.sim_interface = PythonSimulator(num_actions=num_actions, step_size=self.step_size, max_speed=max_speed,
+                                                 time_to_reach=time_to_reach, distance=500.0, front_vehicle=False,
+                                                 driver_type=HumanDriven)
+
         self.time_to_reach = time_to_reach
-        self.step_size = 1
+
         self.id = id
         self.episode_num = 0
         self.correctly_ended = []
@@ -46,10 +52,8 @@ class Vehicle_env_mp(gym.Env):
         self.control_length = 400
 
 
+
         # if simulator not used
-        self.vehicle = Vehicle()
-        self.vehicle_front = Vehicle()
-        self.vehicle_controller = HumanDriven(self.step_size, self.vehicle_front.max_acc, self.vehicle_front.max_acc)
         self.front_vehicle_end_time = 0
 
     def set_id(self, id):
@@ -57,56 +61,14 @@ class Vehicle_env_mp(gym.Env):
 
     def step(self, action):
         self.iter += 1
-
-        if action == 0:
-            paddleCommand = -1
-        elif action == 1:
-            paddleCommand = 0
-        else:
-            paddleCommand = 1
-
-        message_send = {'edges': [], 'vehicles':[{"index":self.id, "paddleCommand": paddleCommand}]}
-
-        if self.is_simulator_used:
-            message = self.sim_client.send_message(message_send)
-        else:
-            message = 0
-
-        if self.is_front_vehicle:
-            acc = self.vehicle_controller.compute_acceleration(self.vehicle_front)
-            self.vehicle_front.step(self.map_to_paddle_command(acc))
-
-        observation, reward, done, info = self.decode_message(message, paddleCommand)
-
+        obs, done, info = self.sim_interface.get_step_data(action)
+        observation, reward, done, info = self.decode_message(obs, done, info)
         return observation, reward, done, info
 
     def reset(self):
-
-        if self.is_simulator_used:
-            message_send = {'edges': [], 'vehicles': [{"index": self.id, "paddleCommand": 0}]}
-            self.distance = 380
-            self.front_vehicle_end_time = 0
-            message = self.sim_client.send_message(message_send)
-            observation, _, _, _ = self.decode_message(message, 0)
-
-            return observation # reward, done, info can't be included
-        else:
-            if self.is_front_vehicle:
-                self.vehicle_controller = np.random.choice([
-                    #HumanDriven(self.step_size, self.vehicle_front.max_acc, self.vehicle_front.max_acc),
-                    HumanDriven_1(self.step_size, self.vehicle_front.max_acc, self.vehicle_front.max_acc),
-                    HumanDriven_2(self.step_size, self.vehicle_front.max_acc, self.vehicle_front.max_acc)
-                    ])
-
-                l = self.vehicle.reset()
-                time_to_reach = int(l[1])-1
-                self.vehicle_front.assign_data()
-                l.extend([self.vehicle.location - self.vehicle_front.location,
-                            self.vehicle_front.speed])
-
-                return np.array(l, dtype=np.float32)
-            else:
-                return  np.array(self.vehicle.reset(), dtype=np.float32)
+        obs, done, info = self.sim_interface.reset()
+        observation, _, _, _ = self.decode_message(obs, done, info)
+        return observation # reward, done, info can't be included
 
     def render(self, mode='human'):
       # Simulation runs separately
@@ -116,80 +78,68 @@ class Vehicle_env_mp(gym.Env):
       print("Correctly ended episodes", self.correctly_ended)
       pass
 
-    def decode_message(self, message, action):
+    def decode_message1(self, obs, done, add_info):
+        speed, time, distance, gap, front_vehicle_speed, acc = obs
 
-        # init variables
-        speed = 0
-        time = 0
-        distance = 0
-        obs = [speed,time,distance]
-        if self.is_front_vehicle:
-            obs = [speed,time,distance,0,0,0]
+        if not self.is_front_vehicle:
+            obs = [speed, time, distance]
 
-        done = False
+        info = {'is_success':False}
+
+        if done:
+            reward = 20*((1-abs(distance)/self.control_length) + (1-time/5) + speed/25)
+            if add_info["is_success"]:
+                info["is_success"] = True
+        else:
+            reward = -distance/self.control_length
+
+        return np.array(obs, dtype=np.float32), reward, done, info
+
+    def decode_message(self, obs, done, add_info):
+
+        speed, time, distance, gap, front_vehicle_speed, acc = obs
+
+        if not self.is_front_vehicle:
+            obs = [speed, time, distance]
+
         reward = [0.0, 0.0, 0.0]
         info = {'is_success':False}
 
-        if self.is_simulator_used:
-            for vehicle in message["vehicles"]:
-                if vehicle["vid"] == self.id:
-                    speed   = vehicle["speed"]
-                    time    = vehicle["timeRemain"]
-                    distance = vehicle["headPositionFromEnd"]
-                    done = vehicle["done"]
-                    obs = [speed, time, distance]
-
-                    # Reward vector creation
-                    if done:
-                        self.episode_num += 1
-                        if vehicle["is_success"]:
-                            reward[1] = 10.0+3*speed
-                            info["is_success"] = True
-                        else:
-                            reward[1] = -10.0
-                    else:
-                        reward[0] = -distance/self.control_length #self.distance - distance
-                        self.distance = distance
-
-                    if vehicle["isVirtual"]:
-                        self.front_vehicle_end_time += 0.2
-
-                    if self.is_front_vehicle:
-                        gap = vehicle['gap']
-                        front_vehicle_speed = vehicle['frontVehicleSpeed']
-                        acc = front_vehicle_speed - self.last_speed
-
-                        if acc > 0:
-                            acc = 1.0
-                        elif acc < 0:
-                            acc = -1.0
-                        else:
-                            acc = 0.0
-
-                        obs.extend([gap, front_vehicle_speed, acc])
-
-                        if done:
-                            if gap < 20 and reward[1] == -10.0 and obs[1] < 2:
-                                info["is_success"] = True
-                                reward[1] = 10.0 + 3*speed
-
-                            if distance < 20 and self.front_vehicle_end_time < 2 and obs[1] < 2:
-                                info["is_success"] = True
-                                reward[1] = 10.0 + 3*speed
-
-                        if (gap < 10):
-                            reward[2] = (gap - 6)/6
-                        elif (gap < 20):
-                            reward[2] = 0.1
-
-                        if (vehicle['crashed']):
-                            reward[2] = -400
-                            reward[1] = 0
-                            done = True
-
-                        self.last_speed = front_vehicle_speed
-
+        if done:
+            self.episode_num += 1
+            if add_info["is_success"]:
+                reward[1] = 10.0*(1-time/10)+3*speed
+                info["is_success"] = True
+            else:
+                reward[1] = -10
         else:
+            reward[0] = -distance/self.control_length #self.distance - distance
+            self.distance = distance
+
+            if self.is_front_vehicle:
+                if add_info["is_virtual"]:
+                    self.front_vehicle_end_time += 0.2
+
+                if done:
+                    if gap < 20 and reward[1] == -10.0 and obs[1] < 2:
+                        info["is_success"] = True
+                        reward[1] = 10.0 + 3*speed
+
+                    if distance < 20 and self.front_vehicle_end_time < 2 and obs[1] < 2:
+                        info["is_success"] = True
+                        reward[1] = 10.0 + 3*speed
+
+                if (gap < 10):
+                    reward[2] = (gap - 6)/6
+                elif (gap < 20):
+                    reward[2] = 0.1
+
+                if (add_info['is_crashed']):
+                    reward[2] = -400
+                    reward[1] = 0
+                    done = True
+
+        """else:
             obs, reward, done, info = self.vehicle.step(action)
 
             if self.is_front_vehicle:
@@ -214,7 +164,7 @@ class Vehicle_env_mp(gym.Env):
             if done:
                 self.episode_num += 1
                 if info['is_success']:
-                    self.correctly_ended.append(self.episode_num)
+                    self.correctly_ended.append(self.episode_num)"""
 
         if self.multi_objective:
             reward = np.array(reward, dtype=np.float32)

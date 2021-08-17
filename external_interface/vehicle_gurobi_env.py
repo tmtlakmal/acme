@@ -16,7 +16,7 @@ class Vehicle_gurobi_env_mp_split(gym.Env):
     # time_to_reach: Time remaining to reach destination
     # distance: Distance to destination
 
-    def __init__(self, id, num_actions, max_speed=22.3, time_to_reach=45.0, distance=500.0,
+    def __init__(self, id, num_actions, max_speed=22.0, time_to_reach=45.0, distance=500.0,
                  front_vehicle=False, multi_objective=True, env : SMARTS_env = None):
         super(Vehicle_gurobi_env_mp_split, self).__init__()
         # Define action and observation space
@@ -49,6 +49,7 @@ class Vehicle_gurobi_env_mp_split(gym.Env):
         self.distance = 380
         self.multi_objective = multi_objective
 
+        self.crash_counter = 0
 
         # if simulator not used
         self.vehicle = Vehicle()
@@ -120,6 +121,7 @@ class Vehicle_gurobi_env_mp_split(gym.Env):
       pass
 
     def close (self):
+      print("Crash Risk", self.crash_counter)
       print("Correctly ended episodes", self.correctly_ended)
       pass
 
@@ -146,6 +148,9 @@ class Vehicle_gurobi_env_mp_split(gym.Env):
                     done = vehicle["done"]
 
                     obs = [speed, time, distance]
+
+                    if vehicle["isCrashRisk"]:
+                        self.crash_counter += 1
 
                     if done:
                         self.episode_num += 1
