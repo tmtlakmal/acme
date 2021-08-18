@@ -15,5 +15,5 @@
 
 """Implementation of a deep Q-networks (DQN) agent."""
 
-from acme.agents.tf.MOdqn.agent import MODQN
-from acme.agents.tf.MOdqn.learning import MoDQNLearner
+from acme.agents.tf.tldqn.agent import TLDQN
+from acme.agents.tf.tldqn.learning import TLDQNLearner

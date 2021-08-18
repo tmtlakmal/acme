@@ -35,7 +35,7 @@ import tensorflow as tf
 import trfl
 
 
-class TFDQNLearner(acme.Learner, tf2_savers.TFSaveable):
+class TLDQNLearner(acme.Learner, tf2_savers.TFSaveable):
   """DQN learner.
 
   This is the learning component of a DQN agent. It takes a dataset as input
@@ -82,8 +82,8 @@ class TFDQNLearner(acme.Learner, tf2_savers.TFSaveable):
     # Internalise agent components (replay buffer, networks, optimizer).
     # TODO(b/155086959): Fix type stubs and remove.
     self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
-    self._networks = networks
-    self._target_networks = target_networks
+    self._network = networks
+    self._target_network = target_networks
 
     learning_schedule = LinearSchedule(400000, eps_fraction=0.9, eps_start=learning_rate, eps_end=learning_rate)
     self._optimizer = snt.optimizers.Adam(learning_rate, learning_rate_decay=None)
@@ -129,7 +129,7 @@ class TFDQNLearner(acme.Learner, tf2_savers.TFSaveable):
     o_tm1, a_tm1, r_t, d_t, o_t, d_t_e = inputs.data
     keys, probs = inputs.info[:2]
 
-    for network, target_network in zip(self._networks, self._target_networks):
+    for network, target_network in zip(self._network, self._target_network):
 
       with tf.GradientTape() as tape:
         # Evaluate our networks.

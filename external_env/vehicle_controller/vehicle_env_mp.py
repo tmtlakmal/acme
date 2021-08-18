@@ -9,12 +9,12 @@ class Vehicle_env_mp(gym.Env):
     metadata = {'render.modes': ['human']}
 
     def __init__(self, id, num_actions, max_speed=22.0, time_to_reach=45.0, distance=500.0,
-                 front_vehicle=False, multi_objective=True, use_smarts=False):
+                 front_vehicle=False, multi_objective=True, lexicographic=False, use_smarts=False):
         super(Vehicle_env_mp, self).__init__()
         # Define action and observation space
         # They must be gym.spaces objects
         self.action_space = spaces.Discrete(num_actions)
-
+        self.reward_space = 2 if lexicographic else 1
         self.iter = 0
         self.sim_client = ZeroMqClient()
         self.is_front_vehicle = front_vehicle
@@ -25,6 +25,7 @@ class Vehicle_env_mp(gym.Env):
         else:
             self.observation_space = spaces.Box(low=np.array([0.0, 0.0, 0.0, 0.0, 0.0, -1.0]),
                                                 high=np.array([max_speed, time_to_reach, distance, distance, max_speed, 1.0]), dtype=np.float32)
+
 
         self.is_episodic = True
         self.is_simulator_used = use_smarts
@@ -49,6 +50,7 @@ class Vehicle_env_mp(gym.Env):
         self.last_speed = 0
         self.distance = 0
         self.multi_objective = multi_objective
+        self.lexicographic = lexicographic
         self.control_length = 400
 
 
@@ -139,35 +141,12 @@ class Vehicle_env_mp(gym.Env):
                     reward[1] = 0
                     done = True
 
-        """else:
-            obs, reward, done, info = self.vehicle.step(action)
-
-            if self.is_front_vehicle:
-                obs.extend([self.vehicle.location - self.vehicle_front.location,
-                            self.vehicle_front.speed])
-                #reward += abs(abs(self.vehicle_front.location - self.vehicle.location) - 2)/400
-                if done:
-                    if abs(self.vehicle_front.location - self.vehicle.location) < 20 \
-                            and reward == -10.0 and obs[1] < 2:
-                        reward = 10.0 + self.vehicle.speed
-                        info['is_success'] = True
-
-
-                if (self.vehicle_front.location - self.vehicle.location) > 0 and self.vehicle_front.location > 0 :
-                    reward_1 = -20.0
-                    done = True
-                else:
-                    reward_1 = 0.0
-
-            obs = [float(i) for i in obs]
-
-            if done:
-                self.episode_num += 1
-                if info['is_success']:
-                    self.correctly_ended.append(self.episode_num)"""
-
         if self.multi_objective:
-            reward = np.array(reward, dtype=np.float32)
+            if self.lexicographic:
+                reward = np.array([reward[0]+reward[1], reward[0]+reward[2]], dtype=np.float32)
+            else:
+                reward = np.array(reward, dtype=np.float32)
+
         else:
             reward = sum(reward)
 

@@ -23,7 +23,7 @@ from acme import specs
 from acme.adders import reverb as adders
 from acme.agents import agent
 from acme.agents.tf import actors
-from acme.agents.tf.MOdqn import learning
+from acme.agents.tf.tldqn import learning
 from acme.tf import savers as tf2_savers
 from acme.tf import utils as tf2_utils
 from acme.utils import paths
@@ -36,7 +36,7 @@ import tensorflow as tf
 import trfl
 
 
-class TFDQN(agent.Agent):
+class TLDQN(agent.Agent):
   """DQN agent.
 
   This implements thresholded lexicographic DQN from
@@ -105,15 +105,15 @@ class TFDQN(agent.Agent):
         remover=reverb.selectors.Fifo(),
         max_size=max_replay_size,
         rate_limiter=reverb.rate_limiters.MinSize(1),
-        signature=adders.MoNStepTransitionAdder.signature(environment_spec, extras_spec=extras_spec))
+        signature=adders.NStepTransitionAdder.signature(environment_spec))
     self._server = reverb.Server([replay_table], port=None)
 
     # The adder is used to insert observations into replay.
     address = f'localhost:{self._server.port}'
-    adder = adders.MoNStepTransitionAdder(
+    adder = adders.NStepTransitionAdder(
         client=reverb.Client(address),
         n_step=n_step,
-        discounts=discount)
+        discount=discount)
 
     # The dataset provides an interface to sample from replay.
     replay_client = reverb.TFClient(address)
@@ -126,8 +126,6 @@ class TFDQN(agent.Agent):
     # Use constant 0.05 epsilon greedy policy by default.
     if epsilon is None:
         epsilon = tf.Variable(0.05, trainable=False)
-
-
 
     policy_networks = [GreedyEpsilonWithDecay([
         network,
@@ -148,7 +146,7 @@ class TFDQN(agent.Agent):
     actor = actors.TLForwardActor(policy_networks, epsilon, adder)
 
     # The learner updates the parameters (and initializes them).
-    learner = learning.TFDQNLearner(
+    learner = learning.TLDQNLearner(
         networks=networks,
         target_networks=target_networks,
         discount=discount,

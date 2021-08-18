@@ -18,7 +18,8 @@ import os.path
 import json
 from acme.agents.tf import dqn
 from acme.agents.tf import MOdqn
-from acme.agents.gurobi import lp
+from acme.agents.tf import tldqn
+from acme.agents.gurobi.lp.agent import LP
 import pprint as pp
 from absl import flags
 import acme
@@ -37,9 +38,11 @@ import tensorflow as tf
 tf.random.set_seed(1234)
 
 
-def make_environment(num_actions=3, multi_objective=True, front_vehicle=False, path='./') -> dm_env.Environment:
+def make_environment(num_actions=3, multi_objective=True, lexicographic=False, front_vehicle=False,
+                     path='./') -> dm_env.Environment:
 
-  environment =  Vehicle_env_mp(2, num_actions=num_actions, front_vehicle=front_vehicle, multi_objective=multi_objective, use_smarts=True)
+  environment =  Vehicle_env_mp(2, num_actions=num_actions, front_vehicle=front_vehicle,
+                                multi_objective=multi_objective, lexicographic=lexicographic, use_smarts=True)
   step_data_file = os.path.join(path, "episode_data.csv")
   environment = wrappers.Monitor_save_step_data(environment, step_data_file=step_data_file)
 
@@ -49,12 +52,11 @@ def make_environment(num_actions=3, multi_objective=True, front_vehicle=False, p
 
   return environment
 
-def createTensorboardWriter(tensorboard_log_dir, suffix):
+def createNextFileWriter(tensorboard_log_dir, suffix):
     id = paths.find_next_path_id(tensorboard_log_dir, suffix) + 1
     train_log_dir = tensorboard_log_dir + suffix + "_"+ str(id)
-    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-    print("Tensorboard logs at ", train_log_dir)
-    return train_summary_writer, train_log_dir
+    print("Logs at: ", train_log_dir)
+    return train_log_dir
 
 def createNextFileName(tensorboard_log_dir, suffix):
     id = paths.find_next_path_id(tensorboard_log_dir, suffix) + 1
@@ -62,6 +64,20 @@ def createNextFileName(tensorboard_log_dir, suffix):
 
 flags.DEFINE_integer('num_episodes', 10000, 'Number of episodes to train for.')
 flags.DEFINE_integer('num_steps', 500000, 'Number of steps to train for.')
+
+def make_network(num_actions, lexicograhic=False, reward_spec=None):
+    if lexicograhic:
+        try:
+            num_objectives = reward_spec.shape[0]
+        except:
+            print("Reward spec is Zero. Setting to One")
+            num_objectives = 1
+        network = []
+        for i in range(num_objectives):
+            network.append(networks.DuellingMLP(num_actions, (128, 128)))
+    else:
+        network = networks.DuellingMLP(num_actions, (128, 128))
+    return network
 
 def array_to_string(array):
     s = ''
@@ -71,18 +87,21 @@ def array_to_string(array):
 
 def main(opts):
 
-  # Parameters to save and restore
+  # Create log directory and the TensorboardWriter
+  path = createNextFileWriter(opts.log_dir, "DQN")
+  tensorboard_writer = tf.summary.create_file_writer(path)
 
-  tensorboard_writer, path = createTensorboardWriter(opts.log_dir, "DQN")
-
+  # Save settings in the same 'path' directory
   with open(os.path.join(path, "args.json"), 'w') as f:
       json.dump(vars(opts), f, indent=True)
 
+  # Create dm env from gym env
   env = make_environment(num_actions=opts.num_actions, multi_objective=opts.multi_objective,
-                         front_vehicle=opts.front_vehicle, path=path)
+                         lexicographic=opts.lexicographic, front_vehicle=opts.front_vehicle, path=path)
   environment_spec = specs.make_environment_spec(env)
-  network = networks.DuellingMLP(3,  (128, 128))
 
+  # Create NN network
+  network = make_network(opts.num_actions, opts.lexicographic, env.reward_spec())
 
   if opts.pretrained is not None:
         epsilon_schedule = LinearSchedule(opts.num_steps, eps_fraction=1.0, eps_start=0, eps_end=0)
@@ -91,19 +110,27 @@ def main(opts):
 
   checkpoint_path = os.path.join(opts.pretrained if opts.pretrained is not None else path, 'checkpoints_single')
 
+
+  # Select the agent
   if opts.controller == 'Gurobi':
-      agent = lp.LP()
+      agent = LP()
   elif opts.controller == 'Heuristic':
-      agent = lp.Heuristic()
+      agent = LP()
   else:
-      if opts.multi_objective:
-            agent = MOdqn.MODQN(environment_spec, network, discount=opts.discounts, epsilon=epsilon_schedule, learning_rate=5e-5,
+      if opts.multi_objective and opts.lexicographic:
+        agent = tldqn.TLDQN(environment_spec, network, discount=opts.discounts, epsilon=epsilon_schedule, learning_rate=5e-5,
                   batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
                   checkpoint=True, checkpoint_subpath=checkpoint_path, target_update_period=200)
+      elif opts.multi_objective:
+          agent = MOdqn.MODQN(environment_spec, network, discount=opts.discounts, epsilon=epsilon_schedule,
+                              learning_rate=5e-5,
+                              batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
+                              checkpoint=True, checkpoint_subpath=checkpoint_path, target_update_period=200)
       else:
             agent = dqn.DQN(environment_spec, network, discount=opts.discounts[0], epsilon=epsilon_schedule, learning_rate=1e-4,
                           batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
                           checkpoint=True, checkpoint_subpath=checkpoint_path, target_update_period=200)
+
 
   if opts.pretrained is not None:
       agent.restore()
@@ -139,6 +166,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--controller', default='RL', help="Available controllers (RL, Gurobi, Heuristic)")
     parser.add_argument('--multi_objective', action='store_true', help="if true use MD-DQN")
+    parser.add_argument('--lexicographic', action='store_true', help="if true use TL-DQN")
     parser.add_argument('--log_dir', default='../../logs/', help='Directory to write TensorBoard information to')
     parser.add_argument('--output_dir', default='../../outputs/', help='Directory to write output models to')
     parser.add_argument('--pretrained', help='pretrained file location')
@@ -158,17 +186,21 @@ if __name__ == '__main__':
     opts = parser.parse_args()
 
     ## Set opts here or in the terminal
-    opts.multi_objective = True
+    opts.multi_objective = False
+    opts.lexicographic = False
     opts.controller = "RL"
     opts.eval_only = False
     #opts.pretrained = "../../checkpoints/"
-    opts.discounts = [1, 1, 1]
+    opts.discounts = [1, 1, 0.9]
+    if opts.lexicographic:
+        opts.discounts = [1, 0.9]
     opts.front_vehicle = False
 
     if opts.controller is not "RL":
         opts.eval_only = True
 
     assert not (opts.multi_objective == True and len(opts.discounts) <= 1) , "Discount size should be equals to the number of objectives"
+    assert (not opts.lexicographic or (opts.multi_objective and opts.lexicographic)), "Lexicograhic should be used with Multiobjective"
 
     pp.pprint(vars(opts))
     main(opts)

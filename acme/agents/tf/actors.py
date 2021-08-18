@@ -154,10 +154,10 @@ class TLForwardActor(core.Actor):
       self.epsilon.assign(self.epsilon_scheduler.value())
 
     # Forward the policy network.
-    policy_output = []
-    for policy_network in self._policy_networks:
-      policy_output.append(policy_network(batched_obs, self.epsilon))
-
+    #policy_output = []
+    #for policy_network in self._policy_networks:
+    #  policy_output.append(policy_network(batched_obs, self.epsilon))
+    policy_output = self._policy_networks[0](batched_obs, self.epsilon)
     #process order of acton and select
 
     # If the policy network parameterises a distribution, sample from it.

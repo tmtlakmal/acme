@@ -21,7 +21,7 @@ into a single transition, simplifying to a simple transition adder when N=1.
 
 import copy
 import itertools
-from typing import Optional
+from typing import Optional, Union
 
 from acme import specs
 from acme import types
@@ -88,7 +88,7 @@ class NStepTransitionAdder(base.ReverbAdder):
       self,
       client: reverb.Client,
       n_step: int,
-      discount: float,
+      discount,
       priority_fns: Optional[base.PriorityFnMapping] = None,
   ):
     """Creates an N-step transition adder.
@@ -108,7 +108,10 @@ class NStepTransitionAdder(base.ReverbAdder):
     """
     # Makes the additional discount a float32, which means that it will be
     # upcast if rewards/discounts are float64 and left alone otherwise.
-    self._discount = np.float32(discount)
+    if type(discount) == 'list':
+        self._discount = np.array(discount)
+    else:
+        self._discount = np.float32(discount)
 
     super().__init__(
         client=client,
@@ -135,6 +138,7 @@ class NStepTransitionAdder(base.ReverbAdder):
     n_step_return = copy.deepcopy(self._buffer[0].reward)
     total_discount = copy.deepcopy(self._buffer[0].discount)
 
+    total_discount = np.full(self._discount.shape, total_discount)
     # NOTE: total discount will have one less discount than it does
     # step.discounts. This is so that when the learner/update uses an additional
     # discount we don't apply it twice. Inside the following loop we will

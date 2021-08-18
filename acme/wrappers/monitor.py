@@ -54,6 +54,11 @@ class Monitor_save_step_data(gym.Wrapper):
             self.logger.writeheader()
             self.file_handler.flush()
 
+        try:
+            self.reward_space = env.reward_space
+        except:
+            self.reward_space = 1
+
         self.reset_keywords = reset_keywords
         self.info_keywords = info_keywords
         self.allow_early_resets = allow_early_resets

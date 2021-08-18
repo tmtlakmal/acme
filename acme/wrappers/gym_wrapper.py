@@ -43,6 +43,21 @@ class GymWrapper(dm_env.Environment):
     self._observation_spec = _convert_to_spec(obs_space, name='observation')
     self._action_spec = _convert_to_spec(act_space, name='action')
 
+    try:
+      if self._environment.reward_space > 1:
+        self._reward_spec = specs.Array(shape=(self._environment.reward_space,), dtype=float, name='reward')
+        self._discount_spec = specs.BoundedArray(
+          shape=(self._environment.reward_space,), dtype=float, minimum=0., maximum=1., name='discount')
+      else:
+        self._reward_spec = specs.Array(shape=(), dtype=float, name='reward')
+        self._discount_spec = specs.BoundedArray(
+          shape=(), dtype=float, minimum=0., maximum=1., name='discount')
+    except:
+      print("No reward spec found. Using default 1")
+      self._reward_spec = specs.Array(shape=(), dtype=float, name='reward')
+      self._discount_spec = specs.BoundedArray(
+        shape=(), dtype=float, minimum=0., maximum=1., name='discount')
+
   def reset(self) -> dm_env.TimeStep:
     """Resets the episode."""
     self._reset_next_step = False
@@ -70,10 +85,11 @@ class GymWrapper(dm_env.Environment):
   def action_spec(self) -> types.NestedSpec:
     return self._action_spec
 
-  #def reward_spec(self) -> types.NestedSpec:
-  #  return specs.Array(shape=(2,), dtype=float, name='reward')
+  def reward_spec(self) -> types.NestedSpec:
+    return self._reward_spec
 
-
+  def discount_spec(self) -> types.NestedSpec:
+    return self._discount_spec
 
   @property
   def environment(self) -> gym.Env:
@@ -103,6 +119,22 @@ class GymWrapperSplit(dm_env.Environment):
     act_space = self._environment.action_space
     self._observation_spec = _convert_to_spec(obs_space, name='observation')
     self._action_spec = _convert_to_spec(act_space, name='action')
+
+    try:
+      if self._environment.reward_space >=1:
+        self._reward_spec = specs.Array(shape=(self._environment.reward_space,), dtype=float, name='reward')
+        self._discount_spec = specs.BoundedArray(
+          shape=(self._environment.reward_space), dtype=float, minimum=0., maximum=1., name='discount')
+      else:
+        self._reward_spec = specs.Array(shape=(), dtype=float, name='reward')
+        self._discount_spec = specs.BoundedArray(
+          shape=(), dtype=float, minimum=0., maximum=1., name='discount')
+    except:
+      print("No reward spec found. Using default 1")
+      self._reward_spec = specs.Array(shape=(), dtype=float, name='reward')
+      self._discount_spec = specs.BoundedArray(
+        shape=(), dtype=float, minimum=0., maximum=1., name='discount')
+
 
   def set_id(self, id):
     self._environment.set_id(id)
@@ -150,10 +182,11 @@ class GymWrapperSplit(dm_env.Environment):
   def action_spec(self) -> types.NestedSpec:
     return self._action_spec
 
-  #def reward_spec(self) -> types.NestedSpec:
-  #  return specs.Array(shape=(2,), dtype=float, name='reward')
+  def reward_spec(self) -> types.NestedSpec:
+    return self._reward_spec
 
-
+  def discount_spec(self) -> types.NestedSpec:
+    return self._discount_spec
 
   @property
   def environment(self) -> gym.Env:
