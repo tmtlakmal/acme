@@ -107,15 +107,15 @@ class MODQN(agent.Agent):
         remover=reverb.selectors.Fifo(),
         max_size=max_replay_size,
         rate_limiter=reverb.rate_limiters.MinSize(1),
-        signature=adders.NStepTransitionAdder.signature(environment_spec))
+        signature=adders.NStepTransitionAdder.signature(environment_spec, extras_spec=extras_spec))
     self._server = reverb.Server([replay_table], port=None)
 
     # The adder is used to insert observations into replay.
     address = f'localhost:{self._server.port}'
-    adder = adders.NStepTransitionAdder(
+    adder = adders.MoNStepTransitionAdder(
         client=reverb.Client(address),
         n_step=n_step,
-        discount=discount)
+        discounts=discount)
 
     # The dataset provides an interface to sample from replay.
     replay_client = reverb.TFClient(address)

@@ -35,6 +35,7 @@ tfd = tfp.distributions
 import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
+import trfl
 
 class FeedForwardActor(core.Actor):
   """A feed-forward actor.
@@ -139,7 +140,7 @@ class TLForwardActor(core.Actor):
     # Store these for later use.
     self._adder = adder
     self._variable_client = variable_client
-    self._policy_networks = [tf.function(policy_network)  for policy_network in policy_networks]
+    self._policy_networks = [policy_network  for policy_network in policy_networks]
     self.epsilon_scheduler = epsilon_scheduler
     self.epsilon = tf.Variable(1.0, trainable=False) if isinstance(self.epsilon_scheduler, Schedule) \
                    else epsilon_scheduler
@@ -154,10 +155,18 @@ class TLForwardActor(core.Actor):
       self.epsilon.assign(self.epsilon_scheduler.value())
 
     # Forward the policy network.
-    #policy_output = []
-    #for policy_network in self._policy_networks:
-    #  policy_output.append(policy_network(batched_obs, self.epsilon))
-    policy_output = self._policy_networks[0](batched_obs, self.epsilon)
+    actions = []
+    for policy_network in self._policy_networks:
+      policy_values = policy_network(batched_obs)
+      policy_output = trfl.epsilon_greedy(policy_values, self.epsilon)
+      actions.append(tf.argsort(policy_output.probs)[0][0:2]) # Take two sample
+
+    all_actions = tf.stack(actions)
+    y, idx, count = tf.unique_with_counts(tf.reshape(all_actions,[-1,]))
+    common_actions = tf.reshape(tf.gather(count, idx), all_actions.shape)
+    max_idx = tf.argmax(common_actions[0])
+    action = tf.gather(all_actions[0], indices=max_idx)
+    action = tf2_utils.add_batch_dim(action)
     #process order of acton and select
 
     # If the policy network parameterises a distribution, sample from it.
@@ -166,10 +175,10 @@ class TLForwardActor(core.Actor):
         output = output.sample()
       return output
 
-    policy_output = tree.map_structure(maybe_sample, policy_output)
+    #policy_output = tree.map_structure(maybe_sample, policy_output)
 
     # Convert to numpy and squeeze out the batch dimension.
-    action = tf2_utils.to_numpy_squeeze(policy_output)
+    action = tf2_utils.to_numpy_squeeze(action)
 
     return action
 

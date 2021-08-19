@@ -86,7 +86,7 @@ class TLDQNLearner(acme.Learner, tf2_savers.TFSaveable):
     self._target_network = target_networks
 
     learning_schedule = LinearSchedule(400000, eps_fraction=0.9, eps_start=learning_rate, eps_end=learning_rate)
-    self._optimizer = snt.optimizers.Adam(learning_rate, learning_rate_decay=None)
+    self._optimizer = [snt.optimizers.Adam(learning_rate, learning_rate_decay=None) for _ in networks]
     self._replay_client = replay_client
 
     # Internalise the hyperparameters.
@@ -126,22 +126,35 @@ class TLDQNLearner(acme.Learner, tf2_savers.TFSaveable):
 
     # Pull out the data needed for updates/priorities.
     inputs = next(self._iterator)
-    o_tm1, a_tm1, r_t, d_t, o_t, d_t_e = inputs.data
+    o_tm1, a_tm1, r_all, d_all, o_t = inputs.data
+
+    # convert 3 discounts into 1 to match trj. control and cruise control
+    r_all = tf.stack([tf.reduce_sum(r_all[:, 0:2], axis=1), r_all[:, -1]], axis=1)
+    d_all = tf.stack([d_all[:, 0], d_all[:, -1]], axis=1)
     keys, probs = inputs.info[:2]
-
-    for network, target_network in zip(self._network, self._target_network):
-
+    fetches = {}
+    for idx, (network, target_network, optimizer) in \
+            enumerate(zip(self._network, self._target_network, self._optimizer)):
+      r_t = r_all[:,idx]
+      d_t = d_all[:,idx]
       with tf.GradientTape() as tape:
         # Evaluate our networks.
         q_tm1 = network(o_tm1)
         q_t_value = target_network(o_t)
         q_t_selector = network(o_t)
 
+        # discount_mask = tf.greater(o_t[:,3], -10)
+        # indices = tf.where(discount_mask)
+        # updates = tf.fill(indices.shape[0], 0.7)
+        #
+        # mask = tf.ones(shape=d_t.shape)
+        # b_t = tf.tensor_scatter_nd_update(mask, indices, updates)
+        # d_t *= b_t
         # The rewards and discounts have to have the same type as network values.
         r_t = tf.cast(r_t, q_tm1.dtype)
         # r_t = tf.clip_by_value(r_t, -1., 1.)
-        d_t = tf.cast(d_t, q_tm1.dtype) * tf.cast(d_t_e['discount'], q_tm1.dtype)
-        # d_t = tf.cast(d_t, q_tm1.dtype) * tf.cast(self._discount, q_tm1.dtype)
+        # d_t = tf.cast(d_t, q_tm1.dtype) * tf.cast(d_t_e['discount'], q_tm1.dtype)
+        d_t = tf.cast(d_t, q_tm1.dtype) * tf.cast(self._discount[idx+1], q_tm1.dtype)
 
         # Compute the loss.
         _, extra = trfl.double_qlearning(q_tm1, a_tm1, r_t, d_t, q_t_value,
@@ -158,9 +171,9 @@ class TLDQNLearner(acme.Learner, tf2_savers.TFSaveable):
         loss *= tf.cast(importance_weights, loss.dtype)  # [B]
         loss = tf.reduce_mean(loss, axis=[0])  # []
 
-      # Do a step of SGD.
+        # Do a step of SGD.
       gradients = tape.gradient(loss, network.trainable_variables)
-      self._optimizer.apply(gradients, network.trainable_variables)
+      optimizer.apply(gradients, network.trainable_variables)
 
       # Update the priorities in the replay buffer.
       if self._replay_client:
@@ -173,14 +186,11 @@ class TLDQNLearner(acme.Learner, tf2_savers.TFSaveable):
         for src, dest in zip(network.variables,
                              target_network.variables):
           dest.assign(src)
-    self._num_steps.assign_add(1)
 
-    # Report loss & statistics for logging.
-    fetches = {
-      'loss': loss,
-      'original loss': tf.reduce_mean(original_loss),
-      'td_error': tf.reduce_mean(extra.td_error)
-    }
+      fetches['loss_'+str(idx)] = loss
+      fetches['td_error_'+str(idx)] = tf.reduce_mean(extra.td_error)
+
+    self._num_steps.assign_add(1)
 
     return fetches
 

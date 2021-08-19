@@ -127,10 +127,10 @@ class TLDQN(agent.Agent):
     if epsilon is None:
         epsilon = tf.Variable(0.05, trainable=False)
 
-    policy_networks = [GreedyEpsilonWithDecay([
-        network,
-        lambda q, e: trfl.epsilon_greedy(q, e).sample(),
-    ]) for network in networks]
+    policy_networks = networks # [GreedyEpsilonWithDecay([
+    #    network,
+    #    lambda q, e: trfl.epsilon_greedy(q, e) # Do not sample here. Sampling done once every objective selected
+    #]) for network in networks]
 
 
     # Create a target network.

@@ -14,7 +14,7 @@ class Vehicle_env_mp(gym.Env):
         # Define action and observation space
         # They must be gym.spaces objects
         self.action_space = spaces.Discrete(num_actions)
-        self.reward_space = 2 if lexicographic else 1
+        self.reward_space = 3 if lexicographic else 1
         self.iter = 0
         self.sim_client = ZeroMqClient()
         self.is_front_vehicle = front_vehicle
@@ -142,9 +142,9 @@ class Vehicle_env_mp(gym.Env):
                     done = True
 
         if self.multi_objective:
-            if self.lexicographic:
-                reward = np.array([reward[0]+reward[1], reward[0]+reward[2]], dtype=np.float32)
-            else:
+            #if self.lexicographic:
+            #    reward = np.array([reward[0]+reward[1], reward[2]], dtype=np.float32)
+            #else:
                 reward = np.array(reward, dtype=np.float32)
 
         else:

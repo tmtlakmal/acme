@@ -68,7 +68,7 @@ flags.DEFINE_integer('num_steps', 500000, 'Number of steps to train for.')
 def make_network(num_actions, lexicograhic=False, reward_spec=None):
     if lexicograhic:
         try:
-            num_objectives = reward_spec.shape[0]
+            num_objectives = reward_spec.shape[0]-1 # 3 rewards
         except:
             print("Reward spec is Zero. Setting to One")
             num_objectives = 1
@@ -186,15 +186,15 @@ if __name__ == '__main__':
     opts = parser.parse_args()
 
     ## Set opts here or in the terminal
-    opts.multi_objective = False
+    opts.multi_objective = True
     opts.lexicographic = False
     opts.controller = "RL"
     opts.eval_only = False
     #opts.pretrained = "../../checkpoints/"
     opts.discounts = [1, 1, 0.9]
     if opts.lexicographic:
-        opts.discounts = [1, 0.9]
-    opts.front_vehicle = False
+        opts.discounts = [1, 1, 0.9]
+    opts.front_vehicle = True
 
     if opts.controller is not "RL":
         opts.eval_only = True
