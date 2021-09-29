@@ -126,7 +126,7 @@ class TLDQNLearner(acme.Learner, tf2_savers.TFSaveable):
 
     # Pull out the data needed for updates/priorities.
     inputs = next(self._iterator)
-    o_tm1, a_tm1, r_all, d_all, o_t = inputs.data
+    o_tm1_all, a_tm1, r_all, d_all, o_t_all = inputs.data
 
     # convert 3 discounts into 1 to match trj. control and cruise control
     r_all = tf.stack([tf.reduce_sum(r_all[:, 0:2], axis=1), r_all[:, -1]], axis=1)
@@ -137,6 +137,8 @@ class TLDQNLearner(acme.Learner, tf2_savers.TFSaveable):
             enumerate(zip(self._network, self._target_network, self._optimizer)):
       r_t = r_all[:,idx]
       d_t = d_all[:,idx]
+      o_tm1 = o_tm1_all
+      o_t = o_t_all
       with tf.GradientTape() as tape:
         # Evaluate our networks.
         q_tm1 = network(o_tm1)

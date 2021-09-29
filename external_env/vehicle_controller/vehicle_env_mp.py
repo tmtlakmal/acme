@@ -4,13 +4,13 @@ from external_env.vehicle_controller.simulator_interface import SmartsSimulator,
 from external_env.vehicle_controller.base_controller import *
 from external_interface.zeromq_client import ZeroMqClient
 
-class Vehicle_env_mp(gym.Env):
+class VehicleEnvMp(gym.Env):
     """Custom Environment that follows gym interface"""
     metadata = {'render.modes': ['human']}
 
     def __init__(self, id, num_actions, max_speed=22.0, time_to_reach=45.0, distance=500.0,
                  front_vehicle=False, multi_objective=True, lexicographic=False, use_smarts=False):
-        super(Vehicle_env_mp, self).__init__()
+        super(VehicleEnvMp, self).__init__()
         # Define action and observation space
         # They must be gym.spaces objects
         self.action_space = spaces.Discrete(num_actions)
@@ -110,7 +110,7 @@ class Vehicle_env_mp(gym.Env):
         if done:
             self.episode_num += 1
             if add_info["is_success"]:
-                reward[1] = 10.0*(1-time/10)+3*speed
+                reward[1] = 10.0+3*speed
                 info["is_success"] = True
             else:
                 reward[1] = -10
@@ -118,28 +118,28 @@ class Vehicle_env_mp(gym.Env):
             reward[0] = -distance/self.control_length #self.distance - distance
             self.distance = distance
 
-            if self.is_front_vehicle:
-                if add_info["is_virtual"]:
-                    self.front_vehicle_end_time += 0.2
+        if self.is_front_vehicle:
+            if add_info["is_virtual"]:
+                self.front_vehicle_end_time += 0.2
 
-                if done:
-                    if gap < 20 and reward[1] == -10.0 and obs[1] < 2:
-                        info["is_success"] = True
-                        reward[1] = 10.0 + 3*speed
+            if done:
+                if gap < 20 and reward[1] == -10.0 and obs[1] < 2:
+                    info["is_success"] = True
+                    reward[1] = 10.0 + 3*speed
 
-                    if distance < 20 and self.front_vehicle_end_time < 2 and obs[1] < 2:
-                        info["is_success"] = True
-                        reward[1] = 10.0 + 3*speed
+                if distance < 20 and self.front_vehicle_end_time < 2 and obs[1] < 2:
+                    info["is_success"] = True
+                    reward[1] = 10.0 + 3*speed
 
-                if (gap < 10):
-                    reward[2] = (gap - 6)/6
-                elif (gap < 20):
-                    reward[2] = 0.1
+            if (gap < 10):
+                reward[2] = (gap - 6)/6
+            elif (gap < 20):
+                reward[2] = 0.1
 
-                if (add_info['is_crashed']):
-                    reward[2] = -400
-                    reward[1] = 0
-                    done = True
+            if (add_info['is_crashed']):
+                reward[2] = -400
+                reward[1] = 0
+                done = True
 
         if self.multi_objective:
             #if self.lexicographic:

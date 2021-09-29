@@ -77,7 +77,7 @@ def load_result_from_csv(lower, num_items, annotations, file_name='../RL_Agent/V
     pd.set_option("display.max_rows", None, "display.max_columns", None)
     #print(df['speed'])
     #print(max(df['episode number']))
-    annot = df.pivot('episode number', 'step', 'speed')
+    annot = df.pivot('episode number', 'step', 'gap')
     annot = annot.round()
     #annot = annot.astype('Int64')
     df = df.pivot('episode number', 'step', 'speed')
@@ -99,9 +99,10 @@ file_name2='../../logs/DQN_46/episode_data_single.csv'
 
 if __name__ == '__main__':
 
+    #file_name = "/home/student.unimelb.edu.au/pgunarathna/Downloads/reward_2_12.csv"
     #smooth_data(file_name, 'Value', 0.9)
 
-    file_name1 = '../../logs/DQN_93/episode_data.csv'
-    file_name2 = '../../logs/DQN_76/episode_data.csv'
-    load_result_from_csv(0, 100, annotations=False, file_name=file_name1)
+    file_name1 = '../../logs/DQN_19/episode_data.csv'
+    #file_name2 = '../../logs/DQN_76/episode_data.csv'
+    load_result_from_csv(1400, 100, annotations=False, file_name=file_name1)
     #compare_trajectories(file_name1, file_name2, 0 , num_items=20, output_file='lp_comparison_heuristic.csv')

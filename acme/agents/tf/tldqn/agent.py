@@ -138,7 +138,7 @@ class TLDQN(agent.Agent):
 
     # Ensure that we create the variables before proceeding (maybe not needed).
     for network in networks:
-        tf2_utils.create_variables(network, [environment_spec.observations])
+        tf2_utils.create_variables(network,[environment_spec.observations]) #TODO : change the fix values
     for target_network in target_networks:
         tf2_utils.create_variables(target_network, [environment_spec.observations])
 

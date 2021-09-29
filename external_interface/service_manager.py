@@ -102,5 +102,5 @@ class Manager():
 
 if __name__ == '__main__':
     manager = Manager()
-    manager.online_run(30000, controller="Gurobi")
+    manager.online_run(15000, controller="Gurobi")
     manager.close()

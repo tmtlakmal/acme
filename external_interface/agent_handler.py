@@ -11,7 +11,7 @@ from acme.tf import networks
 from acme.utils import paths
 from external_interface.vehicle_env import Vehicle_env_mp_split
 from external_interface.vehicle_gurobi_env import  Vehicle_gurobi_env_mp_split
-from acme.agents.gurobi.lp.agent import LP
+from acme.agents.gurobi.lp.agent import LP, Heuristic
 
 import dm_env
 import tensorflow as tf
@@ -106,7 +106,7 @@ class AgentHandler():
         if controller == "Gurobi":
             agent = LP()
         elif controller == "Heuristic":
-            agent = LP() #Heuristic()
+            agent = Heuristic()
         elif controller == "RL" and trained:
             epsilon_schedule = LinearSchedule(400000, eps_fraction=1.0, eps_start=0, eps_end=0)
             agent = MOdqn.MODQN(environment_spec, network, discount=discounts, epsilon=epsilon_schedule, learning_rate=1e-3,

@@ -28,7 +28,8 @@ from acme.utils.schedulers import LinearSchedule
 from acme import wrappers
 from acme.tf import networks
 from acme.utils import paths
-from external_env.vehicle_controller.vehicle_env_mp import Vehicle_env_mp
+from external_env.vehicle_controller.vehicle_env_mp import VehicleEnvMp
+from external_env.vehicle_controller.vehicle_env_cruise import VehicleEnvCruise
 from acme.agents import  agent
 
 import argparse
@@ -41,8 +42,8 @@ tf.random.set_seed(1234)
 def make_environment(num_actions=3, multi_objective=True, lexicographic=False, front_vehicle=False,
                      path='./') -> dm_env.Environment:
 
-  environment =  Vehicle_env_mp(2, num_actions=num_actions, front_vehicle=front_vehicle,
-                                multi_objective=multi_objective, lexicographic=lexicographic, use_smarts=True)
+  environment =  VehicleEnvMp(2, num_actions=num_actions, front_vehicle=front_vehicle,
+                              multi_objective=multi_objective, lexicographic=lexicographic, use_smarts=True)
   step_data_file = os.path.join(path, "episode_data.csv")
   environment = wrappers.Monitor_save_step_data(environment, step_data_file=step_data_file)
 
@@ -65,7 +66,7 @@ def createNextFileName(tensorboard_log_dir, suffix):
 flags.DEFINE_integer('num_episodes', 10000, 'Number of episodes to train for.')
 flags.DEFINE_integer('num_steps', 500000, 'Number of steps to train for.')
 
-def make_network(num_actions, lexicograhic=False, reward_spec=None):
+def make_network(num_actions, lexicograhic=False, reward_spec=None, hidden_dim=128):
     if lexicograhic:
         try:
             num_objectives = reward_spec.shape[0]-1 # 3 rewards
@@ -74,9 +75,9 @@ def make_network(num_actions, lexicograhic=False, reward_spec=None):
             num_objectives = 1
         network = []
         for i in range(num_objectives):
-            network.append(networks.DuellingMLP(num_actions, (128, 128)))
+            network.append(networks.DuellingMLP(num_actions, (hidden_dim, hidden_dim)))
     else:
-        network = networks.DuellingMLP(num_actions, (128, 128))
+        network = networks.DuellingMLP(num_actions, (hidden_dim, hidden_dim))
     return network
 
 def array_to_string(array):
@@ -101,12 +102,12 @@ def main(opts):
   environment_spec = specs.make_environment_spec(env)
 
   # Create NN network
-  network = make_network(opts.num_actions, opts.lexicographic, env.reward_spec())
+  network = make_network(opts.num_actions, opts.lexicographic, env.reward_spec(), opts.hidden_embed_dim)
 
   if opts.pretrained is not None:
         epsilon_schedule = LinearSchedule(opts.num_steps, eps_fraction=1.0, eps_start=0, eps_end=0)
   else:
-        epsilon_schedule = LinearSchedule(opts.num_steps, eps_fraction=0.5, eps_start=1, eps_end=0)
+        epsilon_schedule = LinearSchedule(opts.num_steps, eps_fraction=0.15, eps_start=1, eps_end=0)
 
   checkpoint_path = os.path.join(opts.pretrained if opts.pretrained is not None else path, 'checkpoints_single')
 
@@ -118,16 +119,16 @@ def main(opts):
       agent = LP()
   else:
       if opts.multi_objective and opts.lexicographic:
-        agent = tldqn.TLDQN(environment_spec, network, discount=opts.discounts, epsilon=epsilon_schedule, learning_rate=5e-5,
+        agent = tldqn.TLDQN(environment_spec, network, discount=opts.discounts, epsilon=epsilon_schedule, learning_rate=opts.lr,
                   batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
                   checkpoint=True, checkpoint_subpath=checkpoint_path, target_update_period=200)
       elif opts.multi_objective:
           agent = MOdqn.MODQN(environment_spec, network, discount=opts.discounts, epsilon=epsilon_schedule,
-                              learning_rate=5e-5,
+                              learning_rate=opts.lr,
                               batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
                               checkpoint=True, checkpoint_subpath=checkpoint_path, target_update_period=200)
       else:
-            agent = dqn.DQN(environment_spec, network, discount=opts.discounts[0], epsilon=epsilon_schedule, learning_rate=1e-4,
+            agent = dqn.DQN(environment_spec, network, discount=opts.discounts[0], epsilon=epsilon_schedule, learning_rate=opts.lr,
                           batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
                           checkpoint=True, checkpoint_subpath=checkpoint_path, target_update_period=200)
 
@@ -171,11 +172,16 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', default='../../outputs/', help='Directory to write output models to')
     parser.add_argument('--pretrained', help='pretrained file location')
     parser.add_argument('--eval_only', help='Evaluation only, no training')
-    parser.add_argument('--discounts', nargs='+', default=[1, 1, 1],
+    parser.add_argument('--discounts', nargs='+', default=[1, 1, 0.9],
                         help="Discount factors for each objective")
 
     parser.add_argument('--num_steps', default=500000, help='Number of steps to train for.')
     parser.add_argument('--test_steps', default=4000, help='Number of steps to test for.')
+
+    parser.add_argument('--lr', default=5e-5, help='Learning Rate for Adam')
+    # Neural Network
+    parser.add_argument('--num_layers', default=3, type=int, help='Number of layers in NN')
+    parser.add_argument('--hidden_embed_dim', default=128, type=int, help='Hidden layer size')
 
     ## Similation setting
     parser.add_argument('--front_vehicle', action='store_true', help='Use front vehicle information')
@@ -187,13 +193,13 @@ if __name__ == '__main__':
 
     ## Set opts here or in the terminal
     opts.multi_objective = True
-    opts.lexicographic = False
+    opts.lexicographic = True
     opts.controller = "RL"
     opts.eval_only = False
     #opts.pretrained = "../../checkpoints/"
-    opts.discounts = [1, 1, 0.9]
+    opts.discounts = [0.9, 0.9, 0.9]
     if opts.lexicographic:
-        opts.discounts = [1, 1, 0.9]
+        opts.discounts = [1, 1, 0.95]
     opts.front_vehicle = True
 
     if opts.controller is not "RL":

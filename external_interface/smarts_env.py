@@ -43,7 +43,7 @@ class SMARTS_env():
 
     def init(self):
         print("Calling Init SMARTS...")
-        self.result = self.sim_client.send_message({'Init':'start'})
+        self.result = self.sim_client.send_message({'settings':{"demandPerOneInterval":6}})
 
     def update_actions(self, vid : int, message : dict):
         self.message_to_send.append(message)

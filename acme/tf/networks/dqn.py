@@ -66,6 +66,7 @@ class DQNSplit(snt.Module):
     self.q_network1 = snt.nets.MLP([*hidden_sizes, num_actions])
     self.q_network2 = snt.nets.MLP([*hidden_sizes, num_actions])
 
+    self.combine = snt.nets.MLP([num_actions*2, num_actions])
     #self.attention = tf.Variable([1,1,1], trainable=False)
     self.split = split
 
@@ -80,11 +81,11 @@ class DQNSplit(snt.Module):
     """
 
     # Split input into two parts
-    input_1, input_2 = tf.split(inputs, [self.split,inputs.shape[1] - self.split],1)
+    input_1, input_2 = inputs[:,0:self.split], inputs[:,self.split:]
     q_out_1 = self.q_network1(input_1)  # [B, A]
     q_out_2 = self.q_network2(input_2)  # [B, A]
-
-    q_values = q_out_1 + q_out_2
+    q_out = tf.concat([q_out_1, q_out_2], axis=1)
+    q_values = self.combine(q_out)
 
     return q_values
 

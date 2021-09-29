@@ -156,10 +156,11 @@ class TLForwardActor(core.Actor):
 
     # Forward the policy network.
     actions = []
-    for policy_network in self._policy_networks:
+    policy_output = []
+    for idx, policy_network in enumerate(self._policy_networks):
       policy_values = policy_network(batched_obs)
-      policy_output = trfl.epsilon_greedy(policy_values, self.epsilon)
-      actions.append(tf.argsort(policy_output.probs)[0][0:2]) # Take two sample
+      policy_output.append(trfl.epsilon_greedy(policy_values, self.epsilon))
+      actions.append(tf.argsort(policy_output[-1].probs)[0][0:2]) # Take two sample
 
     all_actions = tf.stack(actions)
     y, idx, count = tf.unique_with_counts(tf.reshape(all_actions,[-1,]))
@@ -175,7 +176,7 @@ class TLForwardActor(core.Actor):
         output = output.sample()
       return output
 
-    #policy_output = tree.map_structure(maybe_sample, policy_output)
+    #action = tree.map_structure(maybe_sample, policy_output[0])
 
     # Convert to numpy and squeeze out the batch dimension.
     action = tf2_utils.to_numpy_squeeze(action)
@@ -443,8 +444,8 @@ class MultiGurobiLpActor(core.Actor):
 
 
     model.addConstr(positions[0, 0] == -distance)
-    model.addConstr(positions[0, N - 1] >= -5)
-    model.addConstr(positions[0, N - 1] <= 2)
+    model.addConstr(positions[0, N - 1] >= -20)
+    model.addConstr(positions[0, N - 1] <= 0)
 
     model.addConstr(velocity[0, 0] == round(np.float64(observation[0]), 2))
     # Constrain the end velocity between max velocity and max velocity - 4
@@ -465,6 +466,7 @@ class MultiGurobiLpActor(core.Actor):
 
     if (self.id in self.trajectory_data):
       self.last_remain_time = self.trajectory_data[self.id].get_last_remain_time()
+      #self.distance = self.trajectory_data[self.id].get_distance()
       self.front_vehicle_remain_time = 0
 
     if ((not self.id in self.trajectory_data) or abs(self.last_remain_time - observation[1]) >= 1 or (observation.size > 4 and self.front_vehicle_remain_time - observation[4] < 0)):
@@ -578,6 +580,9 @@ class Trajectory:
 
   def get_index(self):
     return self.current_index
+
+  def get_distance(self):
+    return np.array(self.distance[0, min(len(self.distance)-1, self.current_index)].x+1)
 
   def set_last_remain_time(self, last_remain_time):
     self.last_remain_time = last_remain_time

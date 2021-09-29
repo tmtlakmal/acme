@@ -68,3 +68,36 @@ class LP(agent.Agent):
 
   def restore(self):
     pass
+
+class Heuristic(agent.Agent):
+  """Linear Programming agent.
+  """
+
+  def __init__(
+      self,
+      batch_size: int = 256,
+      samples_per_insert: float = 32.0,
+      min_replay_size: int = 1000,
+  ):
+
+
+    # Create the actor which defines how we take actions.
+    actor = actors.Heuristic(step_size=0.2, max_velocity=22.22)
+
+    # The learner updates the parameters (and initializes them).
+
+
+    super().__init__(
+        actor=actor,
+        learner=None,
+        min_observations=max(batch_size, min_replay_size),
+        observations_per_step=float(batch_size) / samples_per_insert)
+
+  def update(self):
+    pass
+
+  def save_checkpoints(self, force=False):
+    pass
+
+  def restore(self):
+    pass
