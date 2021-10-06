@@ -22,6 +22,18 @@ Note that the SMARTS simulator should be connected to python interface via zerom
 Any environment can be connected to run_dqn.py to test against any other environment. 
 SMARTS source code is not included in the source code.
 
+### Run
+
+Without connecting SMARTS you can run a simple simulation without a front vehicle for trajectory control task
+```bash
+ python run_dqn.py --controller RL --num_actions 3
+```
+
+With simulator;
+```bash
+ python run_dqn.py --controller RL --num_actions 3 --use_smarts --front_vehicle
+```
+
 ### Dependencies
 
 channels:

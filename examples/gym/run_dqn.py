@@ -40,10 +40,10 @@ tf.random.set_seed(1234)
 
 
 def make_environment(num_actions=3, multi_objective=True, lexicographic=False, front_vehicle=False,
-                     path='./') -> dm_env.Environment:
+                     path='./', use_smarts=False) -> dm_env.Environment:
 
   environment =  VehicleEnvMp(2, num_actions=num_actions, front_vehicle=front_vehicle,
-                              multi_objective=multi_objective, lexicographic=lexicographic, use_smarts=True)
+                              multi_objective=multi_objective, lexicographic=lexicographic, use_smarts=use_smarts)
   step_data_file = os.path.join(path, "episode_data.csv")
   environment = wrappers.Monitor_save_step_data(environment, step_data_file=step_data_file)
 
@@ -98,7 +98,8 @@ def main(opts):
 
   # Create dm env from gym env
   env = make_environment(num_actions=opts.num_actions, multi_objective=opts.multi_objective,
-                         lexicographic=opts.lexicographic, front_vehicle=opts.front_vehicle, path=path)
+                         lexicographic=opts.lexicographic, front_vehicle=opts.front_vehicle,
+                         use_smarts=opts.use_smarts, path=path)
   environment_spec = specs.make_environment_spec(env)
 
   # Create NN network
@@ -184,6 +185,7 @@ if __name__ == '__main__':
     parser.add_argument('--hidden_embed_dim', default=128, type=int, help='Hidden layer size')
 
     ## Similation setting
+    parser.add_argument('--use_smarts', action='store_true', help='Use SMARTS simulator if True')
     parser.add_argument('--front_vehicle', action='store_true', help='Use front vehicle information')
     parser.add_argument('--step_size', default=0.2, help='Use front vehicle information')
     parser.add_argument('--num_actions', default=3, type=int, help='The number of actions the agent can take')
@@ -192,18 +194,18 @@ if __name__ == '__main__':
     opts = parser.parse_args()
 
     ## Set opts here or in the terminal
-    opts.multi_objective = True
-    opts.lexicographic = True
-    opts.controller = "RL"
-    opts.eval_only = False
-    #opts.pretrained = "../../checkpoints/"
-    opts.discounts = [0.9, 0.9, 0.9]
-    if opts.lexicographic:
-        opts.discounts = [1, 1, 0.95]
-    opts.front_vehicle = True
-
-    if opts.controller is not "RL":
-        opts.eval_only = True
+    #opts.multi_objective = True
+    #opts.lexicographic = True
+    #opts.controller = "RL"
+    #opts.eval_only = False
+    ##opts.pretrained = "../../checkpoints/"
+    #opts.discounts = [0.9, 0.9, 0.9]
+    #if opts.lexicographic:
+    #    opts.discounts = [1, 1, 0.95]
+    #opts.front_vehicle = True
+    #
+    #if opts.controller is not "RL":
+    #    opts.eval_only = True
 
     assert not (opts.multi_objective == True and len(opts.discounts) <= 1) , "Discount size should be equals to the number of objectives"
     assert (not opts.lexicographic or (opts.multi_objective and opts.lexicographic)), "Lexicograhic should be used with Multiobjective"
