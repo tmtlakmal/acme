@@ -6,13 +6,13 @@ This codebase is built from a fork from deepmind/acme frame work. https://github
 
 Following are the key files we develop for Multi-discount Q-learning. Please refer to following files for code for Multi-discount Q-learning
 
-1. examples/gym/run_dqn.py : Main file for single RL agent
-2. external_interface/service_manager : Online I-AIM run
-3. external_env/vehicle_controller/vehicle_env_mp.py : Environment for Trajectory + Cruise Control
-4. acme/agents/tf/MOdqn/agent.py : Multi-discount Q-learning Agent (Actor + learner)
-5. acme/agents/tf/MOdqn/learning.py : Multi-discount Q-learning learner
-6. acme/adders/reverb/transition.py [MoNStepTransitionAdder] : Creates sample for experience replay by multiplying the reward vector and discount vector and the reward dependent discount function. 
-7. acme/agents/tf/actors.py [GurobiLpActor] : Linear programming formulation
+1. [run_dqn.py](examples/gym/run_dqn.py]) : Main file for single RL agent
+2. [service_manager](external_interface/service_manager) : Online I-AIM run
+3. [vehicle_env_mp.py](external_env/vehicle_controller/vehicle_env_mp.py) : Environment for Trajectory + Cruise Control
+4. [agent.py](acme/agents/tf/MOdqn/agent.py) : Multi-discount Q-learning Agent (Actor + learner)
+5. [learning.py](acme/agents/tf/MOdqn/learning.py) : Multi-discount Q-learning learner
+6. [transition.py](acme/adders/reverb/transition.py) [MoNStepTransitionAdder] : Creates sample for experience replay by multiplying the reward vector and discount vector and the reward dependent discount function. 
+7. [actors.py](acme/agents/tf/actors.py) [GurobiLpActor] : Linear programming formulation
 
 transition.py : This file contains how to convert the normal Q-learning equation into Multi-discount Q-learning according the equations given in the Section 5 in the manuscript.
 
