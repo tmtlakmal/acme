@@ -1,6 +1,8 @@
 import zmq
 import json
 
+from zsim.envs.external_messages import TrafficData
+
 
 class ZeroMqClient():
 
@@ -20,6 +22,6 @@ class ZeroMqClient():
         return json.loads(message.decode('utf-8'))
 
     def build_message(self, message):
-        json_string = json.dumps(message)
+        json_string = json.dumps(message, default=lambda o: o.__dict__)
         byte_string = bytearray(json_string, encoding="utf-8")
         return byte_string
