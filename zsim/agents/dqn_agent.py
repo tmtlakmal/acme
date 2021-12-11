@@ -11,7 +11,8 @@ from acme.agents.tf import dqn
 from acme.agents.tf import MOdqn
 from acme.agents.tf import tldqn
 from acme.utils.schedulers import LinearSchedule
-
+from acme.agents import agent
+import dm_env
 
 def get_checkpoint_path(pretrained, log_dir):
     if pretrained is not None:
@@ -65,6 +66,23 @@ def create_non_mo_agent(env_spec, epsilon_schedule, tensorboard_writer, checkpoi
                   batch_size=256, samples_per_insert=256.0, tensorboard_writer=tensorboard_writer, n_step=5,
                   checkpoint=True, checkpoint_subpath=checkpoint_path, target_update_period=200)
 
+def test_trained_agent(agent: agent.Agent,
+                       env: dm_env.Environment,
+                       num_time_steps: int):
+    timestep = env.reset()
+    reward = 0
+    for _ in range(num_time_steps):
+        # s = time.time()
+        action = agent.select_action(timestep.observation)
+        # print(time.time()-s)
+        timestep = env.step(action)
+        # print("reward: ", timestep.reward)
+        reward += timestep.reward
+        if timestep.last():
+            timestep = env.reset()
+            print("Episode reward: ", reward)
+            reward = 0
+    env.close()
 
 def generate_agent(log_dir, tb_writer, env, agent_opts):
     multi_objective = agent_opts["multi_objective"]
@@ -100,4 +118,7 @@ def generate_agent(log_dir, tb_writer, env, agent_opts):
         loop = acme.EnvironmentLoop(env, agent, tensorboard_writer=tb_writer)
         loop.run(num_steps=num_steps)
         agent.save_checkpoints(force=True)
-    return agent
+
+    # Test with the trained agent and close the environment
+    test_trained_agent(agent, env, agent_opts["test_steps"])
+    env.close()

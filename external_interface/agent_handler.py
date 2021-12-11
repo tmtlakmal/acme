@@ -16,6 +16,10 @@ from acme.agents.gurobi.lp.agent import LP, Heuristic
 import dm_env
 import tensorflow as tf
 
+from zsim.envs.test_vehicle_envs import SafeRearFollowTestEnvironment, SafeRearFollowWithBackTestEnvironment
+from zsim.envs.vehicle_envs import SafeRearFollowWithBackEnvironment
+
+
 def array_to_string(array):
     s = ''
     for i in array:
@@ -67,7 +71,7 @@ class AgentHandler():
         #    env_loop = acme.EnvironmentLoopSplit(env, agent, tensorboard_writer=None, id=id)
         #    return env_loop
 
-        env = self.make_environment(id, env=self.env, extension=extension, controller=controller)
+        env = self.make_environment(id, env=self.env, front_vehicle=True, extension=extension, controller=controller)
         agent = self.create_agent(env, discounts, train_summary_writer, controller=controller, trained=trained)
         env_loop = acme.EnvironmentLoopSplit(env, agent, tensorboard_writer=train_summary_writer, id=id)
 
@@ -76,6 +80,16 @@ class AgentHandler():
 
 
     def make_environment(self, id=1, env=None,  multi_objective=True, front_vehicle=False, extension='', controller="RL") -> dm_env.Environment:
+        env_opts = dict()
+        env_opts["num_actions"] = 3
+        env_opts["num_rewards"] = 3
+        env_opts["control_length"] = 200
+        env_opts["max_speed"] = 20
+        env_opts["time_to_reach"] = 45
+        env_opts["distance"] = 300
+        env_opts["training_vid"] = 2
+        env_opts["ttc_mn"] = 2
+        env_opts["ttc_thr"] = 10
 
         if not controller == "RL":
             environment = Vehicle_gurobi_env_mp_split(id, 3, front_vehicle=front_vehicle, multi_objective=multi_objective, env=env)

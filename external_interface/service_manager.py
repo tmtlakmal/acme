@@ -1,6 +1,10 @@
 from external_interface.smarts_env import SMARTS_env
 from external_interface.agent_handler import AgentHandler
 import time
+
+from zsim.envs.external_messages import TrafficData, VehicleExternal
+
+
 class Manager():
 
     def __init__(self):
@@ -24,17 +28,19 @@ class Manager():
         self.first_step()
         self.env.step()
         result = self.env.get_result()
-
+        traffic_data = TrafficData(**result)
         for i in range(timesteps):
             index = 0
-            for vehicle in result['vehicles']:
-                if vehicle['externalControl']:
+            for ve in traffic_data.vehicles:
+                vehicle = VehicleExternal(**ve)
+                if vehicle.externalControl:
                     index += 1
-                    id = vehicle['vid']
+                    id = vehicle.vid
                     self.env_handler.env_loops[0].set_id(id)
                     self.env_handler.env_loops[0].online_step()
             self.env.step()
             result = self.env.get_result()
+            traffic_data = TrafficData(**result)
 
     def mixed_run(self, timesteps):
         self.env_handler.create_loop(1, trained=True)
@@ -102,5 +108,5 @@ class Manager():
 
 if __name__ == '__main__':
     manager = Manager()
-    manager.online_run(15000, controller="Gurobi")
+    manager.online_run(15000, controller="RL")
     manager.close()

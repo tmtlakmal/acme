@@ -29,7 +29,7 @@ class ExternalEnvironment(gym.Env):
         self.episode_num = 0
         init_message = "Connection Reset"
         obs_message = self.client.send_message(init_message)
-        observation, reward, done, info = self.decode_message(obs_message)
+        observation, _, _, _ = self.decode_message(obs_message)
         return observation
 
     def render(self, mode="human"):

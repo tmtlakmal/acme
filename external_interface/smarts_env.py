@@ -8,6 +8,8 @@ import json
 import random
 import threading
 
+from zsim.envs.control_messages import VehicleControl, SimulatorExternalControlObjects
+
 
 class SMARTS_env():
     """Custom Environment that follows gym interface"""
@@ -43,14 +45,21 @@ class SMARTS_env():
 
     def init(self):
         print("Calling Init SMARTS...")
-        self.result = self.sim_client.send_message({'settings':{"demandPerOneInterval":6}})
+        self.result = self.sim_client.send_message(str({'settings':{"demandPerOneInterval":6}}))
 
-    def update_actions(self, vid : int, message : dict):
-        self.message_to_send.append(message)
+    # def update_actions(self, vid : int, message : dict):
+    #     self.message_to_send.append(message)
+
+    def update_actions(self, id, paddle_command):
+        self.message_to_send.append(VehicleControl(id, paddle_command))
+
+    # def step(self):
+    #     full_message= {'edges': [], 'vehicles': self.message_to_send}
+    #     self.result = self.sim_client.send_message(full_message)
+    #     self.message_to_send.clear()
 
     def step(self):
-        full_message= {'edges': [], 'vehicles': self.message_to_send}
-        self.result = self.sim_client.send_message(full_message)
+        self.result = self.sim_client.send_message(SimulatorExternalControlObjects(self.message_to_send))
         self.message_to_send.clear()
 
     def get_result(self):
