@@ -27,6 +27,7 @@ from acme.agents import agent
 import dm_env
 import numpy as np
 from gym import spaces
+from acme.utils import loggers
 
 from zsim.external_agent import ExternalEnvironmentAgent
 
@@ -38,7 +39,7 @@ class ExternalEnvironment(gym.Env):
     def __init__(self, lower_bounds, upper_bounds, num_actions, num_rewards):
         super(ExternalEnvironment, self).__init__()
         self.is_episodic = True
-        self.reward_space = num_rewards
+        self.reward_space = 1
         self.action_space = spaces.Discrete(num_actions)
         self.observation_space = spaces.Box(low=np.array(lower_bounds), high=np.array(upper_bounds), dtype=np.float32)
 
@@ -98,7 +99,10 @@ def create_agent(configs):
 
     log_dir = init_log_dir(base_log_dir, agent_name)
     # tb_writer = tf.summary.create_file_writer(log_dir)
-    tb_writer = TFSummaryLogger(log_dir)
+    logger1 = TFSummaryLogger(log_dir)
+    logger2 = loggers.make_default_logger("Default", False, 0)
+    logger_list = [logger1, logger2]
+    tb_writer = logger1.summary
     save_args(log_dir, configs)
     env_spec = get_env_spec(lower_bounds, upper_bounds, num_actions, num_rewards)
     epsilon_schedule = LinearSchedule(num_steps, eps_fraction=1.0, eps_start=0, eps_end=0)
@@ -107,7 +111,7 @@ def create_agent(configs):
     agent = MOdqn.MODQN(env_spec, network, discount=discounts, epsilon=epsilon_schedule, learning_rate=learning_rate,
                         batch_size=256, samples_per_insert=256.0, tensorboard_writer=tb_writer, n_step=5,
                         checkpoint=True, checkpoint_subpath=checkpoint_path, target_update_period=200)
-    return ExternalEnvironmentAgent(agent, tb_writer, address)
+    return ExternalEnvironmentAgent(agent, logger_list, address)
 
 
 if __name__ == '__main__':

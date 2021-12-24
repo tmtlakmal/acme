@@ -25,6 +25,7 @@ class Action(str, Enum):
     OBSERVE = "OBSERVE"
     UPDATE = "UPDATE"
     ABORT = "ABORT"
+    WRITE = "WRITE"
 
 
 class Status(str, Enum):
@@ -45,10 +46,10 @@ class StatusMessage:
 
 
 class ExternalEnvironmentAgent(threading.Thread):
-    def __init__(self, agent: Agent, logger:Logger, address):
+    def __init__(self, agent: Agent, loggers:[Logger], address):
         threading.Thread.__init__(self)
         self.agent = agent
-        self.logger = logger
+        self.loggers = loggers
         self.address = address
         self.server = None
 
@@ -65,8 +66,8 @@ class ExternalEnvironmentAgent(threading.Thread):
 
         if action == Action.SELECT_ACTION:
             observation = action_msg.payload["observation"]
-            self.agent.select_action(_convert_value(np.array(observation, dtype=np.float32)))
-            return StatusMessage(Status.SUCCESS, 1)
+            action = self.agent.select_action(_convert_value(np.array(observation, dtype=np.float32)))
+            return StatusMessage(Status.SUCCESS, action.item())
 
         elif action == Action.OBSERVE_FIRST:
             observation = action_msg.payload["timestep"]["observation"]
@@ -82,16 +83,21 @@ class ExternalEnvironmentAgent(threading.Thread):
             observation = action_msg.payload["next_timestep"]["observation"]
             observation = np.array(observation, dtype=np.float32)
             next_timestep = dm_env.transition(reward=reward, observation=observation)
-            if step_type is StepType.LAST:
+            if step_type == StepType.LAST.name:
                 next_timestep = dm_env.termination(reward=reward, observation=observation)
-            self.agent.observe(np.array(action, dtype=np.int), _convert_timestep(next_timestep))
+            self.agent.observe(np.array(action, dtype=np.int32), _convert_timestep(next_timestep))
             self.agent.update()
+            if step_type == StepType.LAST.name:
+                log_data = action_msg.payload["log_data"]
+                for logger in self.loggers:
+                    logger.write(log_data)
             return StatusMessage(Status.SUCCESS, None)
 
         elif action == Action.WRITE:
             log_data = action_msg.payload["log_data"]
             self.logger.write(log_data)
             return StatusMessage(Status.SUCCESS, None)
+
         elif action == Action.UPDATE:
             self.agent.update()
             return StatusMessage(Status.SUCCESS, None)
