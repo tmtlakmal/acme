@@ -46,8 +46,9 @@ class StatusMessage:
 
 
 class ExternalEnvironmentAgent(threading.Thread):
-    def __init__(self, agent: Agent, loggers:[Logger], address):
+    def __init__(self, pretrained, agent: Agent, loggers:[Logger], address):
         threading.Thread.__init__(self)
+        self.pretrained = pretrained
         self.agent = agent
         self.loggers = loggers
         self.address = address
@@ -55,15 +56,21 @@ class ExternalEnvironmentAgent(threading.Thread):
 
     def run(self):
         self.server = ZeroMQServer(self.address)
-        action = self.server.receive()
-        while action is not None:
-            status = self._get_status_message(action)
-            action = self.server.send_and_receive(status)
+        while True:
+            json_msg = self.server.receive()
+            action_msg = ActionMessage(**json_msg)
+            action = action_msg.action
+            if action == Action.ABORT:
+                break
+            status = self._get_status_message(action_msg)
+            self.server.send(status)
+        if len(self.pretrained) == 0:
+            self.agent.save_checkpoints(force=True)
+            print("Saved the Final checkpoint")
+        self.server.close()
 
     def _get_status_message(self, action_msg):
-        action_msg = ActionMessage(**action_msg)
         action = action_msg.action
-
         if action == Action.SELECT_ACTION:
             observation = action_msg.payload["observation"]
             action = self.agent.select_action(_convert_value(np.array(observation, dtype=np.float32)))
@@ -104,5 +111,4 @@ class ExternalEnvironmentAgent(threading.Thread):
 
         else:
             return None
-
 

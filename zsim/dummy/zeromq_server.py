@@ -14,7 +14,7 @@ class ZeroMQServer:
         return json.loads(message.decode("utf-8"))
 
     def send(self, message_to_send):
-        json_string = json.dumps(message_to_send)
+        json_string = json.dumps(message_to_send, default=lambda o: o.__dict__)
         self.socket.send(bytearray(json_string, encoding="utf-8"))
 
     def send_and_receive(self, message_to_send):
@@ -23,3 +23,6 @@ class ZeroMQServer:
         # wait for the reply
         message = self.socket.recv()
         return json.loads(message.decode('utf-8'))
+
+    def close(self):
+        self.socket.close()
