@@ -83,11 +83,11 @@ class ExternalEnvironmentAgent(threading.Thread):
             return StatusMessage(Status.SUCCESS, None)
 
         elif action == Action.OBSERVE:
-            action = action_msg.payload["action"]
-            step_type = action_msg.payload["next_timestep"]["step_type"]
-            reward = action_msg.payload["next_timestep"]["reward"]
+            action = action_msg.payload["timestep"]["action"]
+            step_type = action_msg.payload["timestep"]["step_type"]
+            reward = action_msg.payload["timestep"]["reward"]
             reward = np.array(reward, dtype=np.float32)
-            observation = action_msg.payload["next_timestep"]["observation"]
+            observation = action_msg.payload["timestep"]["observation"]
             observation = np.array(observation, dtype=np.float32)
             next_timestep = dm_env.transition(reward=reward, observation=observation)
             if step_type == StepType.LAST.name:
