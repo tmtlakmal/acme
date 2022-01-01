@@ -64,7 +64,7 @@ class ExternalEnvironmentAgent(threading.Thread):
                 break
             status = self._get_status_message(action_msg)
             self.server.send(status)
-        if len(self.pretrained) == 0:
+        if not self.pretrained:
             self.agent.save_checkpoints(force=True)
             print("Saved the Final checkpoint")
         self.server.close()
