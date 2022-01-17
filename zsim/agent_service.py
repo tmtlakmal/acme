@@ -84,19 +84,10 @@ def get_env_spec(lower_bounds, upper_bounds, num_actions, num_rewards):
 
 
 def create_agent(configs):
-    num_rewards = configs["num_rewards"]
-    lower_bounds = configs["lower_bounds"]
-    upper_bounds = configs["upper_bounds"]
-    num_steps = configs["train_steps"]
-    num_actions = configs["num_actions"]
-    discounts = configs["discounts"]
-    hidden_dim = configs["hidden_dim"]
-    learning_rate = configs["learning_rate"]
-    address = configs["address"]
-
     def_logger = loggers.make_default_logger("Default", False, 0)
     logger_list = [def_logger]
 
+    address = configs["address"]
     pretrained = "pretrained" in configs.keys()
 
     if not pretrained:
@@ -113,6 +104,19 @@ def create_agent(configs):
         tb_writer = None
         pretrained = configs["pretrained"]
         checkpoint_path = os.path.join(pretrained, 'checkpoints_single')
+        f = open(os.path.join(pretrained, 'args.json'))
+        args = json.load(f)
+        for key in args.keys():
+            configs[key] = args[key]
+
+    num_rewards = configs["num_rewards"]
+    lower_bounds = configs["lower_bounds"]
+    upper_bounds = configs["upper_bounds"]
+    num_steps = configs["train_steps"]
+    num_actions = configs["num_actions"]
+    discounts = configs["discounts"]
+    hidden_dim = configs["hidden_dim"]
+    learning_rate = configs["learning_rate"]
 
     env_spec = get_env_spec(lower_bounds, upper_bounds, num_actions, num_rewards)
     epsilon_schedule = LinearSchedule(num_steps, eps_fraction=1.0, eps_start=0, eps_end=0)
@@ -123,7 +127,7 @@ def create_agent(configs):
                         checkpoint=True, checkpoint_subpath=checkpoint_path, target_update_period=200)
     if pretrained:
         agent.restore()
-    return ExternalEnvironmentAgent(pretrained, agent, logger_list, address)
+    return ExternalEnvironmentAgent(pretrained, agent, logger_list, address), configs
 
 
 if __name__ == '__main__':
@@ -134,11 +138,11 @@ if __name__ == '__main__':
         name = message["name"]
         if name == "End":
             break
-        agent = create_agent(message)
+        agent, configs = create_agent(message)
         if agent:
             service_agents[name] = agent
             agent.start()
-            server.send("Done")
+            server.send(configs)
         else:
             server.send("Fail")
         message = server.receive()
