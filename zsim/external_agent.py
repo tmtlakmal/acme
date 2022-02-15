@@ -21,6 +21,7 @@ def _convert_timestep(timestep: TimeStep) -> TimeStep:
 
 class Action(str, Enum):
     SELECT_ACTION = "SELECT_ACTION"
+    BULK_SELECT_ACTION = "BULK_SELECT_ACTION"
     OBSERVE_FIRST = "OBSERVE_FIRST"
     OBSERVE = "OBSERVE"
     UPDATE = "UPDATE"
@@ -75,6 +76,15 @@ class ExternalEnvironmentAgent(threading.Thread):
             observation = action_msg.payload["observation"]
             action = self.agent.select_action(_convert_value(np.array(observation, dtype=np.float32)))
             return StatusMessage(Status.SUCCESS, action.item())
+
+        if action == Action.BULK_SELECT_ACTION:
+            observations = action_msg.payload["observations"]
+            actions = dict()
+            for vid in observations.keys():
+                observation = observations[vid]
+                action = self.agent.select_action(_convert_value(np.array(observation, dtype=np.float32)))
+                actions[vid] = action.item()
+            return StatusMessage(Status.SUCCESS, actions)
 
         elif action == Action.OBSERVE_FIRST:
             observation = action_msg.payload["timestep"]["observation"]
